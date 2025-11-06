@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>StyleWatcherWin</AssemblyName>
+    <RootNamespace>StyleWatcherWin</RootNamespace>
+    <!-- 设置应用程序图标（用于 EXE 与窗口默认图标） -->
+    <ApplicationIcon>Resources\app.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ClosedXML" Version="0.104.0" />
+    <PackageReference Include="OxyPlot.WindowsForms" Version="2.1.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 运行时可编辑配置 -->
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+    <!-- 确保 app.ico 在输出目录，供托盘图标回退路径使用（单文件发布时 EXE 内已烙入图标） -->
+    <None Include="Resources\app.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+</Project>
