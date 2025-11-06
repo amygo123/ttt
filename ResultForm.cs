@@ -117,7 +117,7 @@ namespace StyleWatcherWin
             _kpi.Controls.Add(MakeKpi(_kpiInv,"可用库存总量","—"));
             _kpi.Controls.Add(MakeKpi(_kpiDoc,"库存天数","—"));
             _kpi.Controls.Add(MakeKpiMissing(_kpiMissing,"缺货尺码"));
-            
+
 // 新增：按需显示的三个占位 KPI 卡片（内容为 1、2、3）
 _kpi.Controls.Add(MakeKpi(_kpiGrade, "定级", "—"));
 _kpi.Controls.Add(MakeKpi(_kpiMinPrice, "最低价", "—"));
@@ -502,7 +502,6 @@ if (other > 0)
                 if (zeros.Contains(s))
                     yield return s;
         }
-        
 
         private static List<Aggregations.SalesItem> CleanSalesForVisuals(IEnumerable<Aggregations.SalesItem> src)
         {
@@ -639,16 +638,6 @@ if (other > 0)
             wb.SaveAs(path);
             try{ System.Diagnostics.Process.Start("explorer.exe", $"/select,\"{path}\""); }catch{}
         }
-    
-
-        
-
-        
-
-        
-
-        
-    
 
         private async System.Threading.Tasks.Task LoadPriceAsync(string styleName)
         {
@@ -693,7 +682,5 @@ if (other > 0)
             }
         }
 
-
-        
 }
 }
