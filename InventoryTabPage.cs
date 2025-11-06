@@ -57,28 +57,6 @@ namespace StyleWatcherWin
         }
         #endregion
 
-        public sealed class InventoryRecord
-        {
-            public string Name { get; set; } = "";
-            public string Color { get; set; } = "";
-            public string Size { get; set; } = "";
-            public string Warehouse { get; set; } = "";
-            public int Available { get; set; }
-            public int OnHand { get; set; }
-        }
-
-        public System.Collections.Generic.List<InventoryRecord> GetCurrentRows()
-        {
-            return _all.Rows.Select(r => new InventoryRecord{
-                Name = r.Name, Color = r.Color, Size = r.Size, Warehouse = r.Warehouse,
-                Available = r.Available, OnHand = r.OnHand
-            }).ToList();
-        }
-
-        public System.Collections.Generic.Dictionary<string,int> GetWarehouseAgg()
-            => _all.ByWarehouse();
-
-
         private static readonly HttpClient _http = new();
 
         private readonly AppConfig _cfg;
@@ -181,14 +159,9 @@ namespace StyleWatcherWin
         }
 
         public Task LoadInventoryAsync(string styleName) => LoadAsync(styleName); // 兼容 ResultForm 旧调用
-        #endregion= "";
-            public string Color { get; set; } = "";
-            public string Size { get; set; } = "";
-            public string Warehouse { get; set; } = "";
-            public int Available { get; set; }
-            public int OnHand { get; set; }
-        }).ToList();
-        }private async Task ReloadAsync(string styleName)
+        #endregion
+
+        private async Task ReloadAsync(string styleName)
         {
             _activeCell = null; // 清筛选
 
@@ -254,14 +227,9 @@ namespace StyleWatcherWin
             }
             return s;
         }
-        #endregion= "";
-            public string Color { get; set; } = "";
-            public string Size { get; set; } = "";
-            public string Warehouse { get; set; } = "";
-            public int Available { get; set; }
-            public int OnHand { get; set; }
-        }).ToList();
-        }#region 绘图与缩放（柱状图降序 + 默认 Top10）
+        #endregion
+
+        #region 绘图与缩放（柱状图降序 + 默认 Top10）
         private void RenderBarsByColor(InvSnapshot snap, PlotView pv, string title)
         {
             var model = new PlotModel { Title = title };
@@ -330,14 +298,9 @@ namespace StyleWatcherWin
             cat.Minimum = -0.5;
             cat.Maximum = maxIndex + 0.5;
         }
-        #endregion= "";
-            public string Color { get; set; } = "";
-            public string Size { get; set; } = "";
-            public string Warehouse { get; set; } = "";
-            public int Available { get; set; }
-            public int OnHand { get; set; }
-        }).ToList();
-        }#region 热力图（使用分位截断与更直观的配色）
+        #endregion
+
+        #region 热力图（使用分位截断与更直观的配色）
         private sealed class HeatmapContext
         {
             public List<string> Colors = new();
@@ -458,14 +421,9 @@ namespace StyleWatcherWin
             BuildHeatmap(snap, pv, title);
             BindPanZoom(pv);
         }
-        #endregion= "";
-            public string Color { get; set; } = "";
-            public string Size { get; set; } = "";
-            public string Warehouse { get; set; } = "";
-            public int Available { get; set; }
-            public int OnHand { get; set; }
-        }).ToList();
-        }// 供外部调用：切换到指定仓库子页
+        #endregion
+
+        // 供外部调用：切换到指定仓库子页
         public void ActivateWarehouse(string warehouse)
         {
             if (string.IsNullOrWhiteSpace(warehouse)) return;
@@ -676,14 +634,8 @@ namespace StyleWatcherWin
                 onSelectionChanged(null);
             };
         }
-        #endregion= "";
-            public string Color { get; set; } = "";
-            public string Size { get; set; } = "";
-            public string Warehouse { get; set; } = "";
-            public int Available { get; set; }
-            public int OnHand { get; set; }
-        }).ToList();
-        }public System.Collections.Generic.IEnumerable<string> CurrentZeroSizes()
+        #endregion
+        public System.Collections.Generic.IEnumerable<string> CurrentZeroSizes()
         {
             return _all.Rows
                 .GroupBy(r => r.Size)
