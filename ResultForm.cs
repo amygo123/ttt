@@ -390,19 +390,16 @@ content.Controls.Add(_kpi,0,0);
             if (_grid.Columns.Contains("日期")) _grid.Columns["日期"].DisplayIndex = 3;
             if (_grid.Columns.Contains("数量")) _grid.Columns["数量"].DisplayIndex = 4;
 
-            // 推断 styleName，若无则使用 default_style 兜底
-            var styleName = parsed.Records
-                .Select(r => r.Name)
-                .Where(n => !string.IsNullOrWhiteSpace(n))
-                .GroupBy(n => n)
-                .OrderByDescending(g => g.Count())
-                .FirstOrDefault()
-                ?.Key;
+            // 推断 styleName（仅基于解析结果，不再使用默认款兜底）
+var styleName = parsed.Records
+    .Select(r => r.Name)
+    .Where(n => !string.IsNullOrWhiteSpace(n))
+    .GroupBy(n => n)
+    .OrderByDescending(g => g.Count())
+    .FirstOrDefault()
+    ?.Key;
 
-            if (string.IsNullOrWhiteSpace(styleName))
-                styleName = _cfg.inventory?.default_style ?? "";
-
-            if (!string.IsNullOrWhiteSpace(styleName))
+if (!string.IsNullOrWhiteSpace(styleName))
             {
                 try { _ = _invPage?.LoadInventoryAsync(styleName); } catch {}
                 try { _ = LoadPriceAsync(styleName); } catch {}
