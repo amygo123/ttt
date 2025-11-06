@@ -618,20 +618,38 @@ if (other > 0)
             }
             ws1.Columns().AdjustToContents();
 
+            // 库存明细（实时，含分仓）
+            try
+            {
+                var invRows = _invPage?.GetCurrentRows() ?? new System.Collections.Generic.List<InventoryTabPage.InventoryRecord>();
+                var wsInv = wb.AddWorksheet("库存明细");
+                wsInv.Cell(1,1).Value="款式"; wsInv.Cell(1,2).Value="颜色"; wsInv.Cell(1,3).Value="尺码"; wsInv.Cell(1,4).Value="仓库"; wsInv.Cell(1,5).Value="可用"; wsInv.Cell(1,6).Value="在库";
+                int r2=2;
+                foreach(var it in invRows)
+                {
+                    wsInv.Cell(r2,1).Value = it.Name;
+                    wsInv.Cell(r2,2).Value = it.Color;
+                    wsInv.Cell(r2,3).Value = it.Size;
+                    wsInv.Cell(r2,4).Value = it.Warehouse;
+                    wsInv.Cell(r2,5).Value = it.Available;
+                    wsInv.Cell(r2,6).Value = it.OnHand;
+                    r2++;
+                }
+                wsInv.Columns().AdjustToContents();
+            } catch { }
+            
+
             // 趋势
             var ws2 = wb.AddWorksheet("趋势");
-            ws2.Cell(1,1).Value="日期"; ws2.Cell(1,2).Value="数量"; ws2.Cell(1,3).Value="MA7(若显示)";
+            ws2.Cell(1,1).Value="日期"; ws2.Cell(1,2).Value="数量";
             var series = Aggregations.BuildDateSeries(_sales,_trendWindow);
-            var ma = Aggregations.MovingAverage(series.Select(x=> (double)x.qty).ToList(), 7);
             int rr=2;
             for(int i=0;i<series.Count;i++){
                 ws2.Cell(rr,1).Value=series[i].day.ToString("yyyy-MM-dd");
                 ws2.Cell(rr,2).Value=series[i].qty;
-                ws2.Cell(rr,3).Value=(_cfg.ui?.showMovingAverage ?? false) ? ma[i] : 0;
                 rr++;
             }
             ws2.Columns().AdjustToContents();
-
             // 口径说明
             var ws3 = wb.AddWorksheet("口径说明");
             ws3.Cell(1,1).Value="趋势窗口（天）"; ws3.Cell(1,2).Value=_trendWindow;

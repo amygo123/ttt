@@ -5,7 +5,7 @@
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyName>StyleWatcherWin</AssemblyName>
+    <AssemblyName>随手查</AssemblyName>
     <RootNamespace>StyleWatcherWin</RootNamespace>
     <!-- 设置应用程序图标（用于 EXE 与窗口默认图标） -->
     <ApplicationIcon>Resources\app.ico</ApplicationIcon>
