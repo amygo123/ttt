@@ -88,7 +88,6 @@ namespace StyleWatcherWin
 
     public static class ApiHelper
     {
-        private static readonly System.Net.Http.HttpClient _http = new System.Net.Http.HttpClient();
         public static async System.Threading.Tasks.Task<string> QueryAsync(AppConfig cfg, string text)
         {
             try
