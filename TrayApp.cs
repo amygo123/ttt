@@ -84,7 +84,7 @@ namespace StyleWatcherWin
             Visible = false;
 
             // 托盘图标
-            _tray.Text = "款式信息";
+            _tray.Text = "随手查";
             try
             {
                 var exeIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
@@ -132,10 +132,10 @@ namespace StyleWatcherWin
             base.OnLoad(e);
             ParseHotkey(_cfg.hotkey, out _mod, out _vk);
             if (!RegisterHotKey(Handle, _hotkeyId, _mod, _vk))
-                MessageBox.Show($"热键 {_cfg.hotkey} 注册失败，可能被占用。", "StyleWatcher",
+                MessageBox.Show($"热键 {_cfg.hotkey} 注册失败，可能被占用。", "随手查",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
-            _tray.BalloonTipTitle = "StyleWatcher 已启动";
+            _tray.BalloonTipTitle = "随手查 已启动";
             _tray.BalloonTipText = $"选中文本后按 {_cfg.hotkey} 查询；双击托盘可显示窗口。";
             _tray.ShowBalloonTip(2500);
         }

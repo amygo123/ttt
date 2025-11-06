@@ -86,7 +86,7 @@ namespace StyleWatcherWin
         {
             _cfg = cfg;
 
-            Text = "StyleWatcher";
+            Text = "随手查";
             Font = new Font("Microsoft YaHei UI", _cfg.window.fontSize);
             Width = Math.Max(1600, _cfg.window.width);
             Height = Math.Max(900, _cfg.window.height);
@@ -403,8 +403,7 @@ content.Controls.Add(_kpi,0,0);
                 .FirstOrDefault()
                 ?.Key;
 
-            if (string.IsNullOrWhiteSpace(styleName))
-                styleName = _cfg.inventory?.default_style ?? "";
+            if (string.IsNullOrWhiteSpace(styleName)) styleName = "";
 
             if (!string.IsNullOrWhiteSpace(styleName))
             {
@@ -533,13 +532,27 @@ if (other > 0)
             foreach(var (day,qty) in series) line.Points.Add(new DataPoint(DateTimeAxis.ToDouble(day), qty));
             modelTrend.Series.Add(line);
 
-            if (_cfg.ui?.showMovingAverage ?? false)
-            {
-                var ma = Aggregations.MovingAverage(series.Select(x=> (double)x.qty).ToList(), 7);
-                var maSeries = new LineSeries{ LineStyle=LineStyle.Dash, Title="MA7" };
-                for(int i=0;i<series.Count;i++) maSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(series[i].day), ma[i]));
-                modelTrend.Series.Add(maSeries);
-            }
+
+
+
+            // 显示最近7天数值标注
+            try {
+                int take = Math.Min(7, series.Count);
+                for (int i = Math.Max(0, series.Count - take); i < series.Count; i++) {
+                    var d = series[i];
+                    var ax = DateTimeAxis.ToDouble(d.day);
+                    var ta = new OxyPlot.Annotations.TextAnnotation{
+                        Text = d.qty.ToString(),
+                        TextPosition = new DataPoint(ax, d.qty),
+                        Stroke = OxyColors.Transparent,
+                        FontSize = 10,
+                        Background = OxyColor.FromAColor(160, OxyColors.White),
+                        TextHorizontalAlignment = OxyPlot.HorizontalAlignment.Center,
+                        TextVerticalAlignment = OxyPlot.VerticalAlignment.Bottom
+                    };
+                    modelTrend.Annotations.Add(ta);
+                }
+            } catch { }
             _plotTrend.Model = modelTrend;
 
             // 2) 尺码销量（降序）
@@ -617,25 +630,87 @@ if (other > 0)
                 r++;
             }
             ws1.Columns().AdjustToContents();
+            // 库存明细（实时，含分仓）——通过反射从 _invPage 的内部快照读取
+            try
+            {
+                var invPage = _invPage;
+                if (invPage != null)
+                {
+                    var t = invPage.GetType();
+                    var fAll = t.GetField("_all", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                    var snap = fAll?.GetValue(invPage);
+                    if (snap != null)
+                    {
+                        var tSnap = snap.GetType();
+                        var pRows = tSnap.GetProperty("Rows");
+                        var rows = pRows?.GetValue(snap) as System.Collections.IEnumerable;
 
-            // 趋势
+                        // 额外：按仓汇总（可选）
+                        var byWh = new System.Collections.Generic.Dictionary<string,int>(System.StringComparer.OrdinalIgnoreCase);
+
+                        if (rows != null)
+                        {
+                            var wsInv = wb.AddWorksheet("库存明细");
+                            wsInv.Cell(1,1).Value="款式"; wsInv.Cell(1,2).Value="颜色"; wsInv.Cell(1,3).Value="尺码"; wsInv.Cell(1,4).Value="仓库"; wsInv.Cell(1,5).Value="可用"; wsInv.Cell(1,6).Value="在库";
+                            int r2=2;
+                            foreach(var row in rows)
+                            {
+                                var tr = row.GetType();
+                                string name = tr.GetProperty("Name")?.GetValue(row)?.ToString() ?? "";
+                                string color = tr.GetProperty("Color")?.GetValue(row)?.ToString() ?? "";
+                                string size  = tr.GetProperty("Size")?.GetValue(row)?.ToString() ?? "";
+                                string wh    = tr.GetProperty("Warehouse")?.GetValue(row)?.ToString() ?? "";
+                                int avail    = System.Convert.ToInt32(tr.GetProperty("Available")?.GetValue(row) ?? 0);
+                                int onhand   = System.Convert.ToInt32(tr.GetProperty("OnHand")?.GetValue(row) ?? 0);
+
+                                wsInv.Cell(r2,1).Value = name;
+                                wsInv.Cell(r2,2).Value = color;
+                                wsInv.Cell(r2,3).Value = size;
+                                wsInv.Cell(r2,4).Value = wh;
+                                wsInv.Cell(r2,5).Value = avail;
+                                wsInv.Cell(r2,6).Value = onhand;
+                                r2++;
+
+                                if (!string.IsNullOrWhiteSpace(wh))
+                                    byWh[wh] = byWh.GetValueOrDefault(wh, 0) + avail;
+                            }
+                            wsInv.Columns().AdjustToContents();
+
+                            // 可选：分仓汇总（放在同一表右侧，或取消此段）
+                            if (byWh.Count > 0)
+                            {
+                                int c0 = 8;
+                                wsInv.Cell(1,c0).Value="分仓"; wsInv.Cell(1,c0+1).Value="可用合计";
+                                int r3=2;
+                                foreach (var kv in byWh)
+                                {
+                                    wsInv.Cell(r3,c0).Value = kv.Key;
+                                    wsInv.Cell(r3,c0+1).Value = kv.Value;
+                                    r3++;
+                                }
+                                wsInv.Columns().AdjustToContents();
+                            }
+                        }
+                    }
+                }
+            }
+            catch { /* ignore inventory export errors */ }
+
+
+            // 趋势（无MA7，仅日期与数量）
             var ws2 = wb.AddWorksheet("趋势");
-            ws2.Cell(1,1).Value="日期"; ws2.Cell(1,2).Value="数量"; ws2.Cell(1,3).Value="MA7(若显示)";
+            ws2.Cell(1,1).Value="日期"; ws2.Cell(1,2).Value="数量";
             var series = Aggregations.BuildDateSeries(_sales,_trendWindow);
-            var ma = Aggregations.MovingAverage(series.Select(x=> (double)x.qty).ToList(), 7);
             int rr=2;
             for(int i=0;i<series.Count;i++){
                 ws2.Cell(rr,1).Value=series[i].day.ToString("yyyy-MM-dd");
                 ws2.Cell(rr,2).Value=series[i].qty;
-                ws2.Cell(rr,3).Value=(_cfg.ui?.showMovingAverage ?? false) ? ma[i] : 0;
                 rr++;
             }
             ws2.Columns().AdjustToContents();
-
             // 口径说明
             var ws3 = wb.AddWorksheet("口径说明");
             ws3.Cell(1,1).Value="趋势窗口（天）"; ws3.Cell(1,2).Value=_trendWindow;
-            ws3.Cell(2,1).Value="是否显示MA7"; ws3.Cell(2,2).Value=(_cfg.ui?.showMovingAverage ?? false) ? "是" : "否";
             ws3.Cell(3,1).Value="库存天数阈值"; ws3.Cell(3,2).Value=$"红<{_cfg.inventoryAlert?.docRed ?? 3}，黄<{_cfg.inventoryAlert?.docYellow ?? 7}";
             ws3.Cell(4,1).Value="销量基线天数"; ws3.Cell(4,2).Value=_cfg.inventoryAlert?.minSalesWindowDays ?? 7;
             ws3.Columns().AdjustToContents();
