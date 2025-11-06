@@ -560,7 +560,7 @@ if (other > 0)
                                  .Where(a=>!string.IsNullOrWhiteSpace(a.Key) && a.Qty!=0)
                                  .OrderByDescending(a=>a.Qty).ToList();
 
-            var modelSize = new PlotModel { Title = "尺码销量", PlotMargins = new OxyThickness(80,6,6,6) };
+            var modelSize = new PlotModel { Title = "尺码销量", PlotMargins = new OxyThickness(80,6,120,6) };
             var sizeCat = new CategoryAxis{ Position=AxisPosition.Left, GapWidth=0.4, StartPosition=1, EndPosition=0 };
             foreach(var a in sizeAgg) sizeCat.Labels.Add(a.Key);
             modelSize.Axes.Add(sizeCat);
@@ -575,7 +575,7 @@ if (other > 0)
                                   .Where(a=>!string.IsNullOrWhiteSpace(a.Key) && a.Qty!=0)
                                   .OrderByDescending(a=>a.Qty).ToList();
 
-            var modelColor = new PlotModel { Title = "颜色销量", PlotMargins = new OxyThickness(80,6,6,6) };
+            var modelColor = new PlotModel { Title = "颜色销量", PlotMargins = new OxyThickness(80,6,120,6) };
             var colorCat = new CategoryAxis{ Position=AxisPosition.Left, GapWidth=0.4, StartPosition=1, EndPosition=0 };
             foreach(var a in colorAgg) colorCat.Labels.Add(a.Key);
             modelColor.Axes.Add(colorCat);
