@@ -143,7 +143,24 @@ content.Controls.Add(_kpi,0,0);
 
             _btnQuery.Text="重新查询";
             _btnQuery.AutoSize=true; _btnQuery.Padding=new Padding(10,6,10,6);
-            _btnQuery.Click += async (s,e)=>{ _btnQuery.Enabled=false; try{ await ReloadAsync(""); } finally{ _btnQuery.Enabled=true; } };
+            _btnQuery.Click += async (s,e) =>
+{
+    try
+    {
+        _btnQuery.Enabled = false;
+        var text = _input.Text?.Trim() ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            MessageBox.Show("请输入款式或粘贴销售明细后再点击【重新查询】。", "随手查", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        await ReloadAsync(text);
+    }
+    finally
+    {
+        _btnQuery.Enabled = true;
+    }
+};
 
             _btnExport.Text="导出Excel";
             _btnExport.AutoSize=true; _btnExport.Padding=new Padding(10,6,10,6);
@@ -399,9 +416,15 @@ var styleName = parsed.Records
     .FirstOrDefault()
     ?.Key;
 
-if (!string.IsNullOrWhiteSpace(styleName))
-            {
-                try { _ = _invPage?.LoadInventoryAsync(styleName); } catch {}
+if (string.IsNullOrWhiteSpace(styleName))
+{
+    MessageBox.Show("未识别到款式，请确认输入文本中包含有效款式名称。", "随手查", MessageBoxButtons.OK, MessageBoxIcon.Information);
+}
+else
+{
+    try { _ = _invPage?.LoadInventoryAsync(styleName); } catch {}
+    try { _ = LoadPriceAsync(styleName); } catch {}
+} catch {}
                 try { _ = LoadPriceAsync(styleName); } catch {}
             }
         }
