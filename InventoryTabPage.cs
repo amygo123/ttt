@@ -405,9 +405,7 @@ namespace StyleWatcherWin
                 Y1 = sizes.Count - 0.5 + 0.01,
                 Interpolate = false,
                 RenderMethod = HeatMapRenderMethod.Rectangles,
-                Data = data, TrackerFormatString = "颜色: {X}
-尺码: {Y}
-库存: {Value:0}"
+                Data = data, TrackerFormatString = "颜色: {X}\n尺码: {Y}\n库存: {Value:0}"
             };
 
             model.Series.Add(hm);
