@@ -143,24 +143,7 @@ content.Controls.Add(_kpi,0,0);
 
             _btnQuery.Text="重新查询";
             _btnQuery.AutoSize=true; _btnQuery.Padding=new Padding(10,6,10,6);
-            _btnQuery.Click += async (s,e) =>
-{
-    try
-    {
-        _btnQuery.Enabled = false;
-        var text = _input.Text?.Trim() ?? string.Empty;
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            MessageBox.Show("请输入款式或粘贴销售明细后再点击【重新查询】。", "随手查", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
-        }
-        await ReloadAsync(text);
-    }
-    finally
-    {
-        _btnQuery.Enabled = true;
-    }
-};
+            _btnQuery.Click += async (s,e)=>{ _btnQuery.Enabled=false; try{ await ReloadAsync(""); } finally{ _btnQuery.Enabled=true; } };
 
             _btnExport.Text="导出Excel";
             _btnExport.AutoSize=true; _btnExport.Padding=new Padding(10,6,10,6);
@@ -371,88 +354,59 @@ content.Controls.Add(_kpi,0,0);
         private async Task ReloadAsync()=>await ReloadAsync(_input.Text);
 
         private async Task ReloadAsync(string displayText)
-{
-    await Task.Yield();
-
-    if (string.IsNullOrWhiteSpace(displayText))
-        displayText = _lastDisplayText;
-
-    var parsed = Parser.Parse(displayText ?? string.Empty);
-
-    var newGrid = parsed.Records
-        .OrderBy(r => r.Name)
-        .ThenBy(r => r.Color)
-        .ThenBy(r => r.Size)
-        .ThenByDescending(r => r.Date)
-        .Select(r => (object)new
         {
-            日期 = r.Date.ToString("yyyy-MM-dd"),
-            款式 = r.Name,
-            颜色 = r.Color,
-            尺码 = r.Size,
-            数量 = r.Qty
-        }).ToList();
+            await Task.Yield();
+            if (string.IsNullOrWhiteSpace(displayText))
+                displayText = _lastDisplayText;
 
-    var newSales = parsed.Records.Select(r => new Aggregations.SalesItem
-    {
-        Date = r.Date,
-        Size = r.Size ?? string.Empty,
-        Color = r.Color ?? string.Empty,
-        Qty = r.Qty
-    }).ToList();
+            var parsed = Parser.Parse(displayText ?? string.Empty);
 
-    _lastDisplayText = displayText ?? string.Empty;
-    _sales = newSales;
-    _gridMaster = newGrid;
+            var newGrid = parsed.Records
+                .OrderBy(r=>r.Name).ThenBy(r=>r.Color).ThenBy(r=>r.Size).ThenByDescending(r=>r.Date)
+                .Select(r => (object)new { 日期=r.Date.ToString("yyyy-MM-dd"), 款式=r.Name, 颜色=r.Color, 尺码=r.Size, 数量=r.Qty }).ToList();
 
-    // KPI: 近 7 天销量
-    var sales7 = _sales.Where(x => x.Date >= DateTime.Today.AddDays(-6)).Sum(x => x.Qty);
-    SetKpiValue(_kpiSales7, sales7.ToString());
+            var newSales = parsed.Records.Select(r=> new Aggregations.SalesItem{
+                Date=r.Date, Size=r.Size??"", Color=r.Color??"", Qty=r.Qty
+            }).ToList();
 
-    // 缺失尺码 chips（按销售基线）
-    SetMissingSizes(
-        MissingSizes(
-            _sales.Select(s => s.Size ?? string.Empty),
-            _invPage?.OfferedSizes() ?? System.Linq.Enumerable.Empty<string>(),
-            _invPage?.CurrentZeroSizes() ?? System.Linq.Enumerable.Empty<string>())
-    );
+            _lastDisplayText = displayText ?? string.Empty;
+            _sales = newSales;
+            _gridMaster = newGrid;
 
-    // 渲染图表
-    RenderCharts(_sales);
+            // KPI: 近 N 天销量（固定用近 7 天）
+            var sales7 = _sales.Where(x=>x.Date>=DateTime.Today.AddDays(-6)).Sum(x=>x.Qty);
+            SetKpiValue(_kpiSales7, sales7.ToString());
 
-    // 列表绑定
-    _binding.DataSource = new BindingList<object>(_gridMaster);
-    _grid.ClearSelection();
-    if (_grid.Columns.Contains("款式")) _grid.Columns["款式"].DisplayIndex = 0;
-    if (_grid.Columns.Contains("颜色")) _grid.Columns["颜色"].DisplayIndex = 1;
-    if (_grid.Columns.Contains("尺码")) _grid.Columns["尺码"].DisplayIndex = 2;
-    if (_grid.Columns.Contains("日期")) _grid.Columns["日期"].DisplayIndex = 3;
-    if (_grid.Columns.Contains("数量")) _grid.Columns["数量"].DisplayIndex = 4;
+            // 缺失尺码 chips（按销售基线）
+            SetMissingSizes(MissingSizes(_sales.Select(s=>s.Size), _invPage?.OfferedSizes() ?? System.Linq.Enumerable.Empty<string>(), _invPage?.CurrentZeroSizes() ?? System.Linq.Enumerable.Empty<string>()));
 
-    // 推断 styleName（仅基于解析结果）
-    var styleName = parsed.Records
-        .Select(r => r.Name)
-        .Where(n => !string.IsNullOrWhiteSpace(n))
-        .GroupBy(n => n)
-        .OrderByDescending(g => g.Count())
-        .FirstOrDefault()
-        ?.Key;
+            RenderCharts(_sales);
 
-    if (string.IsNullOrWhiteSpace(styleName))
-    {
-        MessageBox.Show(
-            "未识别到款式，请确认输入文本中包含有效款式名称。",
-            "随手查",
-            MessageBoxButtons.OK,
-            MessageBoxIcon.Information);
-        return;
-    }
+            _binding.DataSource = new BindingList<object>(_gridMaster);
+            _grid.ClearSelection();
+            if (_grid.Columns.Contains("款式")) _grid.Columns["款式"].DisplayIndex = 0;
+            if (_grid.Columns.Contains("颜色")) _grid.Columns["颜色"].DisplayIndex = 1;
+            if (_grid.Columns.Contains("尺码")) _grid.Columns["尺码"].DisplayIndex = 2;
+            if (_grid.Columns.Contains("日期")) _grid.Columns["日期"].DisplayIndex = 3;
+            if (_grid.Columns.Contains("数量")) _grid.Columns["数量"].DisplayIndex = 4;
 
-    try { _ = _invPage?.LoadInventoryAsync(styleName); } catch { }
-    try { _ = LoadPriceAsync(styleName); } catch { }
-}
+            // 推断 styleName（仅基于解析结果，不再使用默认款兜底）
+var styleName = parsed.Records
+    .Select(r => r.Name)
+    .Where(n => !string.IsNullOrWhiteSpace(n))
+    .GroupBy(n => n)
+    .OrderByDescending(g => g.Count())
+    .FirstOrDefault()
+    ?.Key;
 
-private void OnInventorySummary(int totalAvail, int totalOnHand, Dictionary<string,int> warehouseAgg)
+if (!string.IsNullOrWhiteSpace(styleName))
+            {
+                try { _ = _invPage?.LoadInventoryAsync(styleName); } catch {}
+                try { _ = LoadPriceAsync(styleName); } catch {}
+            }
+        }
+
+        private void OnInventorySummary(int totalAvail, int totalOnHand, Dictionary<string,int> warehouseAgg)
         {
             _invAvailTotal = totalAvail;
             _invOnHandTotal = totalOnHand;
