@@ -694,7 +694,6 @@ if (other > 0)
             // 口径说明
             var ws3 = wb.AddWorksheet("口径说明");
             ws3.Cell(1,1).Value="趋势窗口（天）"; ws3.Cell(1,2).Value=_trendWindow;
-            ws3.Cell(2,1).Value="是否显示MA7"; ws3.Cell(2,2).Value=(_cfg.ui?.show ?? false) ? "是" : "否";
             ws3.Cell(3,1).Value="库存天数阈值"; ws3.Cell(3,2).Value=$"红<{_cfg.inventoryAlert?.docRed ?? 3}，黄<{_cfg.inventoryAlert?.docYellow ?? 7}";
             ws3.Cell(4,1).Value="销量基线天数"; ws3.Cell(4,2).Value=_cfg.inventoryAlert?.minSalesWindowDays ?? 7;
             ws3.Columns().AdjustToContents();
