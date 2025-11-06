@@ -19,8 +19,6 @@ namespace StyleWatcherWin
     {
         public event Action<int, int, Dictionary<string, int>>? SummaryUpdated;
 
-        private int _skippedParseErrors = 0;
-
         #region 数据结构
         private sealed class InvRow
         {
@@ -223,10 +221,9 @@ namespace StyleWatcherWin
                     });
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                _skippedParseErrors++;
-                System.Diagnostics.Debug.WriteLine($"[InventoryTabPage] parse error: {ex.Message}");
+                // ignore
             }
             return s;
         }
@@ -350,7 +347,7 @@ namespace StyleWatcherWin
             if (p95 <= 0) p95 = minPos;
 
             // 自定义更直观的配色：浅 -> 绿 -> 橙 -> 红
-            var palette = OxyPalette.Interpolate(256,
+            var palette = OxyPalette.Interpolate(256, 
                 OxyColor.FromRgb(229, 245, 224), // very light
                 OxyColor.FromRgb(161, 217, 155), // green
                 OxyColor.FromRgb(255, 224, 102), // yellow-ish
@@ -573,8 +570,7 @@ namespace StyleWatcherWin
                 ctl.BindMouseWheel(PlotCommands.ZoomWheel);
                 pv.Controller = ctl;
             }
-            catch {
- }
+            catch { /* ignore */ }
 
             pv.MouseMove += (s, e) =>
             {
