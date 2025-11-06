@@ -283,7 +283,7 @@ namespace StyleWatcherWin
 
                 w.SetLoading("查询中...");
                 // 统一走 ApiHelper
-                string raw = await _cts.Cancel(); _cts.Dispose(); _cts = new System.Threading.CancellationTokenSource(); ApiHelper.QueryAsync(_cfg, txt, _cts.Token);
+                string raw = await ApiHelper.QueryAsync(_cfg, txt, _cts.Token);
                 string result = Formatter.Prettify(raw);
                 w.ApplyRawText(txt, result);
             }
@@ -319,12 +319,11 @@ namespace StyleWatcherWin
             if (vk == 0) vk = (uint)Keys.S;
             if (mod == 0) mod = MOD_ALT;
         }
-    }
-
         protected override void OnFormClosing(FormClosingEventArgs e)
         {
             try { _cts.Cancel(); _cts.Dispose(); } catch { }
             base.OnFormClosing(e);
         }
-    
+
+    }
 }
