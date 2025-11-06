@@ -529,10 +529,6 @@ if (other > 0)
             foreach(var (day,qty) in series) line.Points.Add(new DataPoint(DateTimeAxis.ToDouble(day), qty));
             modelTrend.Series.Add(line);
 
-            ;
-                for(int i=0;i<series.Count;i++) maSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(series[i].day), ma[i]));
-                modelTrend.Series.Add(maSeries);
-            }
             _plotTrend.Model = modelTrend;
 
             // 2) 尺码销量（降序）
