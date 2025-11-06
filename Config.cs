@@ -88,6 +88,7 @@ namespace StyleWatcherWin
 
     public static class ApiHelper
     {
+        private static readonly System.Net.Http.HttpClient _http = new System.Net.Http.HttpClient();
         public static async System.Threading.Tasks.Task<string> QueryAsync(AppConfig cfg, string text, System.Threading.CancellationToken ct = default)
         {
             try
@@ -102,7 +103,7 @@ namespace StyleWatcherWin
                     System.Text.Encoding.UTF8,
                     "application/json");
 
-                var resp = await _http.SendAsync(req, ct);
+                var resp = await __http.SendAsync(req, ct);
                 var raw = await resp.Content.ReadAsStringAsync();
 
                 // 若返回 JSON 带 msg 字段，则优先取之
@@ -133,7 +134,7 @@ namespace StyleWatcherWin
             try
             {
                 _http.Timeout = System.TimeSpan.FromSeconds(Math.Max(3, cfg.timeout_seconds));
-                var resp = await _http.GetAsync(url, ct);
+                var resp = await __http.GetAsync(url, ct);
                 resp.EnsureSuccessStatusCode();
                 var raw = await resp.Content.ReadAsStringAsync();
                 return raw ?? "";
@@ -148,11 +149,8 @@ namespace StyleWatcherWin
         {
             var baseUrl = "http://192.168.40.97:8002/lookup?name=";
             var url = baseUrl + System.Uri.EscapeDataString(styleName ?? string.Empty);
-            using var http = new System.Net.Http.HttpClient
-            {
-                Timeout = System.TimeSpan.FromSeconds(Math.Max(3, 5))
-            };
-            var resp = await _http.GetAsync(url, ct);
+            _http.Timeout = System.TimeSpan.FromSeconds(Math.Max(3, 5));
+            var resp = await __http.GetAsync(url, ct);
             resp.EnsureSuccessStatusCode();
             return await resp.Content.ReadAsStringAsync();
         }

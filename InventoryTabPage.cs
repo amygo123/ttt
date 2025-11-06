@@ -19,6 +19,8 @@ namespace StyleWatcherWin
     {
         public event Action<int, int, Dictionary<string, int>>? SummaryUpdated;
 
+        private int _skippedParseErrors = 0;
+
         #region 数据结构
         private sealed class InvRow
         {
