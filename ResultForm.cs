@@ -529,10 +529,7 @@ if (other > 0)
             foreach(var (day,qty) in series) line.Points.Add(new DataPoint(DateTimeAxis.ToDouble(day), qty));
             modelTrend.Series.Add(line);
 
-            if (_cfg.ui?.showMovingAverage ?? false)
-            {
-                var ma = Aggregations.MovingAverage(series.Select(x=> (double)x.qty).ToList(), 7);
-                var maSeries = new LineSeries{ LineStyle=LineStyle.Dash, Title="MA7" };
+            ;
                 for(int i=0;i<series.Count;i++) maSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(series[i].day), ma[i]));
                 modelTrend.Series.Add(maSeries);
             }
@@ -548,7 +545,7 @@ if (other > 0)
             foreach(var a in sizeAgg) sizeCat.Labels.Add(a.Key);
             modelSize.Axes.Add(sizeCat);
             modelSize.Axes.Add(new LinearAxis{ Position = AxisPosition.Bottom, MinimumPadding = 0, AbsoluteMinimum = 0 });
-            var bsSize = new BarSeries();
+            var bsSize = new BarSeries{ LabelFormatString = "{0}", LabelPlacement = LabelPlacement.Outside };
             foreach(var a in sizeAgg) bsSize.Items.Add(new BarItem{ Value=a.Qty });
             modelSize.Series.Add(bsSize);
             _plotSize.Model = modelSize;
@@ -563,7 +560,7 @@ if (other > 0)
             foreach(var a in colorAgg) colorCat.Labels.Add(a.Key);
             modelColor.Axes.Add(colorCat);
             modelColor.Axes.Add(new LinearAxis{ Position = AxisPosition.Bottom, MinimumPadding=0, AbsoluteMinimum=0 });
-            var bsColor = new BarSeries();
+            var bsColor = new BarSeries{ LabelFormatString = "{0}", LabelPlacement = LabelPlacement.Outside };
             foreach(var a in colorAgg) bsColor.Items.Add(new BarItem{ Value=a.Qty });
             modelColor.Series.Add(bsColor);
             _plotColor.Model = modelColor;
@@ -618,12 +615,11 @@ if (other > 0)
             var ws2 = wb.AddWorksheet("趋势");
             ws2.Cell(1,1).Value="日期"; ws2.Cell(1,2).Value="数量"; ws2.Cell(1,3).Value="MA7(若显示)";
             var series = Aggregations.BuildDateSeries(_sales,_trendWindow);
-            var ma = Aggregations.MovingAverage(series.Select(x=> (double)x.qty).ToList(), 7);
             int rr=2;
             for(int i=0;i<series.Count;i++){
                 ws2.Cell(rr,1).Value=series[i].day.ToString("yyyy-MM-dd");
                 ws2.Cell(rr,2).Value=series[i].qty;
-                ws2.Cell(rr,3).Value=(_cfg.ui?.showMovingAverage ?? false) ? ma[i] : 0;
+                // MA removed
                 rr++;
             }
             ws2.Columns().AdjustToContents();
@@ -631,7 +627,7 @@ if (other > 0)
             // 口径说明
             var ws3 = wb.AddWorksheet("口径说明");
             ws3.Cell(1,1).Value="趋势窗口（天）"; ws3.Cell(1,2).Value=_trendWindow;
-            ws3.Cell(2,1).Value="是否显示MA7"; ws3.Cell(2,2).Value=(_cfg.ui?.showMovingAverage ?? false) ? "是" : "否";
+            // MA removed
             ws3.Cell(3,1).Value="库存天数阈值"; ws3.Cell(3,2).Value=$"红<{_cfg.inventoryAlert?.docRed ?? 3}，黄<{_cfg.inventoryAlert?.docYellow ?? 7}";
             ws3.Cell(4,1).Value="销量基线天数"; ws3.Cell(4,2).Value=_cfg.inventoryAlert?.minSalesWindowDays ?? 7;
             ws3.Columns().AdjustToContents();
