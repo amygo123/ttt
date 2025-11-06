@@ -44,7 +44,7 @@ namespace StyleWatcherWin
         public class InventoryCfg
         {
             public string url_base { get; set; } = "http://192.168.40.97:8000/inventory?style_name=";
-            public string default_style { get; set; } = "纯色/通纯棉圆领短T/黑/XL";
+            public string default_style { get; set; } = "纯色//黑/XL";
         }
 
         public class UiCfg
