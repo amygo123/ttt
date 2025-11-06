@@ -89,11 +89,14 @@ namespace StyleWatcherWin
     public static class ApiHelper
     {
         private static readonly System.Net.Http.HttpClient _http = new System.Net.Http.HttpClient();
-        public static async System.Threading.Tasks.Task<string> QueryAsync(AppConfig cfg, string text, System.Threading.CancellationToken ct = default)
+        public static async System.Threading.Tasks.Task<string> QueryAsync(AppConfig cfg, string text)
         {
             try
             {
-                _http.Timeout = System.TimeSpan.FromSeconds(Math.Max(3, cfg.timeout_seconds));
+                using var http = new System.Net.Http.HttpClient
+                {
+                    Timeout = System.TimeSpan.FromSeconds(Math.Max(3, cfg.timeout_seconds))
+                };
                 var req = new System.Net.Http.HttpRequestMessage(
                     new System.Net.Http.HttpMethod(cfg.method ?? "POST"),
                     cfg.api_url ?? "");
@@ -103,7 +106,7 @@ namespace StyleWatcherWin
                     System.Text.Encoding.UTF8,
                     "application/json");
 
-                var resp = await __http.SendAsync(req, ct);
+                var resp = await http.SendAsync(req);
                 var raw = await resp.Content.ReadAsStringAsync();
 
                 // 若返回 JSON 带 msg 字段，则优先取之
@@ -126,15 +129,18 @@ namespace StyleWatcherWin
         }
 
         // A2: 查询库存（GET）
-        public static async System.Threading.Tasks.Task<string> QueryInventoryAsync(AppConfig cfg, string styleName, System.Threading.CancellationToken ct = default)
+        public static async System.Threading.Tasks.Task<string> QueryInventoryAsync(AppConfig cfg, string styleName)
         {
             var baseUrl = cfg.inventory?.url_base ?? "";
             if (string.IsNullOrWhiteSpace(baseUrl)) return "";
             var url = baseUrl + Uri.EscapeDataString(styleName ?? "");
             try
             {
-                _http.Timeout = System.TimeSpan.FromSeconds(Math.Max(3, cfg.timeout_seconds));
-                var resp = await __http.GetAsync(url, ct);
+                using var http = new System.Net.Http.HttpClient
+                {
+                    Timeout = System.TimeSpan.FromSeconds(Math.Max(3, cfg.timeout_seconds))
+                };
+                var resp = await http.GetAsync(url);
                 resp.EnsureSuccessStatusCode();
                 var raw = await resp.Content.ReadAsStringAsync();
                 return raw ?? "";
@@ -145,12 +151,15 @@ namespace StyleWatcherWin
             }
         }
         // Real: 从价格查询服务获取定级 / 最低价 / 保本价
-        public static async System.Threading.Tasks.Task<string> QueryLookupPriceAsync(string styleName, System.Threading.CancellationToken ct = default)
+        public static async System.Threading.Tasks.Task<string> QueryLookupPriceAsync(string styleName)
         {
             var baseUrl = "http://192.168.40.97:8002/lookup?name=";
             var url = baseUrl + System.Uri.EscapeDataString(styleName ?? string.Empty);
-            _http.Timeout = System.TimeSpan.FromSeconds(Math.Max(3, 5));
-            var resp = await __http.GetAsync(url, ct);
+            using var http = new System.Net.Http.HttpClient
+            {
+                Timeout = System.TimeSpan.FromSeconds(Math.Max(3, 5))
+            };
+            var resp = await http.GetAsync(url);
             resp.EnsureSuccessStatusCode();
             return await resp.Content.ReadAsStringAsync();
         }
