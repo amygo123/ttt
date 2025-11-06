@@ -232,7 +232,7 @@ namespace StyleWatcherWin
         #region 绘图与缩放（柱状图降序 + 默认 Top10）
         private void RenderBarsByColor(InvSnapshot snap, PlotView pv, string title)
         {
-            var model = new PlotModel { Title = title, PlotMargins = new OxyThickness(60, 6, 80, 36) };
+            var model = new PlotModel { Title = title };
             var data = snap.Rows.GroupBy(r => r.Color)
                                 .Select(g => new { Key = g.Key, V = g.Sum(x => x.Available) })
                                 .OrderByDescending(x => x.V)
@@ -249,7 +249,7 @@ namespace StyleWatcherWin
             foreach (var d in data) cat.Labels.Add(d.Key);
 
             var val = new LinearAxis { Position = AxisPosition.Bottom, MinorGridlineStyle = LineStyle.Dot, MajorGridlineStyle = LineStyle.Solid, IsZoomEnabled = true, IsPanEnabled = true };
-            var series = new BarSeries{ LabelFormatString = "{0}", LabelPlacement = LabelPlacement.Outside };
+            var series = new BarSeries();
             foreach (var d in data) series.Items.Add(new BarItem(d.V));
 
             model.Axes.Add(cat);
@@ -263,7 +263,7 @@ namespace StyleWatcherWin
 
         private void RenderBarsBySize(InvSnapshot snap, PlotView pv, string title)
         {
-            var model = new PlotModel { Title = title, PlotMargins = new OxyThickness(60, 6, 80, 36) };
+            var model = new PlotModel { Title = title };
             var data = snap.Rows.GroupBy(r => r.Size)
                                 .Select(g => new { Key = g.Key, V = g.Sum(x => x.Available) })
                                 .OrderByDescending(x => x.V)
@@ -279,7 +279,7 @@ namespace StyleWatcherWin
             foreach (var d in data) cat.Labels.Add(d.Key);
 
             var val = new LinearAxis { Position = AxisPosition.Bottom, MinorGridlineStyle = LineStyle.Dot, MajorGridlineStyle = LineStyle.Solid, IsZoomEnabled = true, IsPanEnabled = true };
-            var series = new BarSeries{ LabelFormatString = "{0}", LabelPlacement = LabelPlacement.Outside };
+            var series = new BarSeries();
             foreach (var d in data) series.Items.Add(new BarItem(d.V));
 
             model.Axes.Add(cat);
@@ -336,7 +336,7 @@ namespace StyleWatcherWin
                 data[ci[g.Key.Color], si[g.Key.Size]] = g.Sum(x => x.Available);
             }
 
-            var model = new PlotModel { Title = title, PlotMargins = new OxyThickness(60, 6, 80, 36) };
+            var model = new PlotModel { Title = title };
 
             // 统计分布
             var vals = new List<double>();
@@ -371,7 +371,7 @@ namespace StyleWatcherWin
             var axX = new LinearAxis
             {
                 Position = AxisPosition.Bottom,
-                Minimum = -0.5, Maximum = Math.Max(colors.Count - 0.5 + 0.01, 0.51),
+                Minimum = -0.5, Maximum = Math.Max(colors.Count - 0.5, 0.5),
                 MajorStep = 1, MinorStep = 1,
                 IsZoomEnabled = true, IsPanEnabled = true,
                 LabelFormatter = d =>
@@ -384,7 +384,7 @@ namespace StyleWatcherWin
             var axY = new LinearAxis
             {
                 Position = AxisPosition.Left,
-                Minimum = -0.5, Maximum = Math.Max(sizes.Count - 0.5 + 0.01, 0.51),
+                Minimum = -0.5, Maximum = Math.Max(sizes.Count - 0.5, 0.5),
                 MajorStep = 1, MinorStep = 1,
                 IsZoomEnabled = true, IsPanEnabled = true,
                 LabelFormatter = d =>
@@ -400,12 +400,12 @@ namespace StyleWatcherWin
             var hm = new HeatMapSeries
             {
                 X0 = -0.5,
-                X1 = colors.Count - 0.5 + 0.01,
+                X1 = colors.Count - 0.5,
                 Y0 = -0.5,
-                Y1 = sizes.Count - 0.5 + 0.01,
+                Y1 = sizes.Count - 0.5,
                 Interpolate = false,
                 RenderMethod = HeatMapRenderMethod.Rectangles,
-                Data = data, TrackerFormatString = "颜色: {X}\n尺码: {Y}\n库存: {Value:0}"
+                Data = data
             };
 
             model.Series.Add(hm);

@@ -79,12 +79,13 @@ namespace StyleWatcherWin
         public TrayApp()
         {
             _cfg = AppConfig.Load();
+            if (_cfg == null) _cfg = new AppConfig();
             ShowInTaskbar = false;
             WindowState = FormWindowState.Minimized;
             Visible = false;
 
             // 托盘图标
-            _tray.Text = "随手查";
+            _tray.Text = "款式信息";
             try
             {
                 var exeIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);
@@ -130,13 +131,14 @@ namespace StyleWatcherWin
         protected override void OnLoad(EventArgs e)
         {
             base.OnLoad(e);
-            ParseHotkey(_cfg.hotkey, out _mod, out _vk);
+            var hotkey = _cfg?.hotkey ?? "Alt+S";
+            ParseHotkey(hotkey, out _mod, out _vk);
             if (!RegisterHotKey(Handle, _hotkeyId, _mod, _vk))
-                MessageBox.Show($"热键 {_cfg.hotkey} 注册失败，可能被占用。", "随手查",
+                MessageBox.Show($"热键 " + hotkey + " 注册失败，可能被占用。", "随手查",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
             _tray.BalloonTipTitle = "随手查 已启动";
-            _tray.BalloonTipText = $"选中文本后按 {_cfg.hotkey} 查询；双击托盘可显示窗口。";
+            _tray.BalloonTipText = $"选中文本后按 {hotkey} 查询；双击托盘可显示窗口。";
             _tray.ShowBalloonTip(2500);
         }
 
