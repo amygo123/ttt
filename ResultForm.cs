@@ -86,7 +86,7 @@ namespace StyleWatcherWin
         {
             _cfg = cfg;
 
-            Text = "随手查";
+            Text = "StyleWatcher";
             Font = new Font("Microsoft YaHei UI", _cfg.window.fontSize);
             Width = Math.Max(1600, _cfg.window.width);
             Height = Math.Max(900, _cfg.window.height);

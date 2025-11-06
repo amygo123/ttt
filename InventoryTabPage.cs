@@ -655,11 +655,5 @@ namespace StyleWatcherWin
         }
 
     }
-
-
-public System.Collections.Generic.IEnumerable<(string Name, string Color, string Size, string Warehouse, int Available, int OnHand)> GetCurrentRows()
-{
-    return _all.Rows.Select(r => (r.Name, r.Color, r.Size, r.Warehouse, r.Available, r.OnHand));
-}
 }
 #pragma warning restore 0618
