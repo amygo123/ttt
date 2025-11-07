@@ -122,13 +122,13 @@ namespace StyleWatcherWin
             top.Controls.Add(_btnExport, 2, 0);
 
             // KPI 顺序：销量 / 库存 / 库存天数 / 定级 / 最低价 / 保本价 / 缺码
-            _kpiSales7 = MakeKpi(_kpiSales7, "近7日销量");
-            _kpiInv = MakeKpi(_kpiInv, "可用库存总量");
-            _kpiDoc = MakeKpi(_kpiDoc, "库存天数");
-            _kpiGrade = MakeKpi(_kpiGrade, "定级");
-            _kpiMinPrice = MakeKpi(_kpiMinPrice, "最低价");
-            _kpiBreakeven = MakeKpi(_kpiBreakeven, "保本价");
-            _kpiMissing = MakeKpi(_kpiMissing, "缺货尺码");
+            _kpiSales7 = MakeKpi("近7日销量");
+            _kpiInv = MakeKpi("可用库存总量");
+            _kpiDoc = MakeKpi("库存天数");
+            _kpiGrade = MakeKpi("定级");
+            _kpiMinPrice = MakeKpi("最低价");
+            _kpiBreakeven = MakeKpi("保本价");
+            _kpiMissing = MakeKpi("缺货尺码");
 
             var header = new TableLayoutPanel
             {
@@ -545,9 +545,7 @@ public void ApplyRawText(string input, string result)
                 // 数值标注
                 foreach (var p in line.Points)
                 {
-                    model.Annotations.Add(new OxyPlot.Annotations.TextAnnotation
-                    {
-                        Position = new DataPoint(p.X, p.Y),
+                    model.Annotations.Add(new OxyPlot.Annotations.TextAnnotation { TextPosition = new DataPoint(p.X, p.Y),
                         Text = p.Y.ToString("0"),
                         TextHorizontalAlignment = OxyPlot.HorizontalAlignment.Center,
                         TextVerticalAlignment = OxyPlot.VerticalAlignment.Bottom,
@@ -716,7 +714,63 @@ public void ApplyRawText(string input, string result)
 
         #endregion
 
-        #region 手动查询入口（顶部输入框）
+        
+private void ExportToExcel()
+{
+    try
+    {
+        if (_sales == null || _sales.Count == 0)
+        {
+            MessageBox.Show(this, "当前没有可导出的销售明细。", "提示",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+
+        using var sfd = new SaveFileDialog
+        {
+            Filter = "Excel 文件|*.xlsx",
+            FileName = string.IsNullOrWhiteSpace(_styleName)
+                ? "销量明细.xlsx"
+                : $"{_styleName}-销量明细.xlsx"
+        };
+
+        if (sfd.ShowDialog(this) != DialogResult.OK)
+            return;
+
+        using var wb = new XLWorkbook();
+        var ws = wb.AddWorksheet("明细");
+
+        // 表头
+        ws.Cell(1, 1).Value = "日期";
+        ws.Cell(1, 2).Value = "款式";
+        ws.Cell(1, 3).Value = "尺码";
+        ws.Cell(1, 4).Value = "颜色";
+        ws.Cell(1, 5).Value = "数量";
+
+        int row = 2;
+        foreach (var r in _sales)
+        {
+            ws.Cell(row, 1).Value = r.Date;
+            ws.Cell(row, 1).Style.DateFormat.Format = "yyyy-mm-dd";
+            ws.Cell(row, 2).Value = r.Name;
+            ws.Cell(row, 3).Value = r.Size;
+            ws.Cell(row, 4).Value = r.Color;
+            ws.Cell(row, 5).Value = r.Qty;
+            row++;
+        }
+
+        ws.Columns().AdjustToContents();
+        wb.SaveAs(sfd.FileName);
+        _status.Text = "已导出：" + sfd.FileName;
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show(this, "导出失败：" + ex.Message, "错误",
+            MessageBoxButtons.OK, MessageBoxIcon.Error);
+    }
+}
+
+#region 手动查询入口（顶部输入框）
 
         private async Task ManualQueryAsync(string text)
         {

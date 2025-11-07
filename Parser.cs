@@ -115,6 +115,11 @@ namespace StyleWatcherWin
                     Date = dt, Name = name, Size = size, Color = color, Qty = qty
                 });
             }
+
+            if (string.IsNullOrEmpty(result.StyleName) && result.Records.Count > 0)
+            {
+                result.StyleName = result.Records[0].Name;
+            }
             return result;
         }
     }
