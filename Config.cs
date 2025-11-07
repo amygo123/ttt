@@ -50,7 +50,7 @@ namespace StyleWatcherWin
         public class UiCfg
         {
             public int[] trendWindows { get; set; } = new[] { 7, 14, 30 };
-= true;
+            public bool showMovingAverage { get; set; } = true;
         }
 
         public class InventoryAlertCfg

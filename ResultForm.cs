@@ -62,10 +62,7 @@ namespace StyleWatcherWin
         private readonly PlotView _plotColor = new();
         private readonly PlotView _plotWarehouse = new();
 
-                // Status
-        private readonly Label _status = new();
-
-// Detail
+        // Detail
         private readonly DataGridView _grid = new();
         private readonly BindingSource _binding = new();
         private readonly TextBox _boxSearch = new();
@@ -113,20 +110,19 @@ namespace StyleWatcherWin
             root.Controls.Add(content,0,1);
 
             _kpi.Dock = DockStyle.Fill;
-_kpi.FlowDirection = FlowDirection.LeftToRight;
-_kpi.WrapContents = true;
-_kpi.Padding = new Padding(12, 8, 12, 8);
-
-// KPI 顺序：缺码 KPI 放在最后
-_kpi.Controls.Add(MakeKpi(_kpiSales7, "近7日销量", "—"));
-_kpi.Controls.Add(MakeKpi(_kpiInv, "可用库存总量", "—"));
-_kpi.Controls.Add(MakeKpi(_kpiDoc, "库存天数", "—"));
+            _kpi.FlowDirection = FlowDirection.LeftToRight;
+            _kpi.WrapContents = true;
+            _kpi.Padding = new Padding(12,8,12,8);
+            _kpi.Controls.Add(MakeKpi(_kpiSales7,"近7日销量","—"));
+            _kpi.Controls.Add(MakeKpi(_kpiInv,"可用库存总量","—"));
+            _kpi.Controls.Add(MakeKpi(_kpiDoc,"库存天数","—"));
+            _kpi.Controls.Add(MakeKpiMissing(_kpiMissing,"缺货尺码"));
+            
+// 新增：按需显示的三个占位 KPI 卡片（内容为 1、2、3）
 _kpi.Controls.Add(MakeKpi(_kpiGrade, "定级", "—"));
 _kpi.Controls.Add(MakeKpi(_kpiMinPrice, "最低价", "—"));
 _kpi.Controls.Add(MakeKpi(_kpiBreakeven, "保本价", "—"));
-_kpi.Controls.Add(MakeKpiMissing(_kpiMissing, "缺货尺码"));
-
-content.Controls.Add(_kpi, 0, 0);
+content.Controls.Add(_kpi,0,0);
 
             _tabs.Dock = DockStyle.Fill;
             BuildTabs();
@@ -350,20 +346,8 @@ content.Controls.Add(_kpi, 0, 0);
         public void ShowNoActivateAtCursor(){ try{ StartPosition=FormStartPosition.Manual; var pt=Cursor.Position; Location=new Point(Math.Max(0,pt.X-Width/2),Math.Max(0,pt.Y-Height/2)); Show(); }catch{ Show(); } }
         public void ShowAndFocusCentered(){ ShowAndFocusCentered(_cfg.window.alwaysOnTop); }
         public void ShowAndFocusCentered(bool alwaysOnTop){ TopMost=alwaysOnTop; StartPosition=FormStartPosition.CenterScreen; Show(); Activate(); FocusInput(); }
-        public void SetLoading(string message)
-{
-    _status.Text = message ?? string.Empty;
-
-    SetKpiValue(_kpiSales7, "—");
-    SetKpiValue(_kpiInv, "—");
-    SetKpiValue(_kpiDoc, "—");
-    SetKpiValue(_kpiGrade, "—");
-    SetKpiValue(_kpiMinPrice, "—");
-    SetKpiValue(_kpiBreakeven, "—");
-    SetMissingSizes(Array.Empty<string>());
-}
-
-public async void ApplyRawText(string selection, string parsed){ _input.Text=selection??string.Empty; _lastDisplayText = parsed ?? string.Empty; await LoadTextAsync(parsed??string.Empty); }
+        public void SetLoading(string message){ SetKpiValue(_kpiSales7,"—"); SetKpiValue(_kpiInv,"—"); SetKpiValue(_kpiDoc,"—"); SetKpiValue(_kpiMissing,"—"); }
+        public async void ApplyRawText(string selection, string parsed){ _input.Text=selection??string.Empty; _lastDisplayText = parsed ?? string.Empty; await LoadTextAsync(parsed??string.Empty); }
         public void ApplyRawText(string text){ _input.Text=text??string.Empty; }
 
         public async Task LoadTextAsync(string raw)=>await ReloadAsync(raw);
@@ -542,6 +526,13 @@ if (other > 0)
             foreach(var (day,qty) in series) line.Points.Add(new DataPoint(DateTimeAxis.ToDouble(day), qty));
             modelTrend.Series.Add(line);
 
+            if (_cfg.ui?.showMovingAverage ?? false)
+            {
+                var ma = Aggregations.MovingAverage(series.Select(x=> (double)x.qty).ToList(), 7);
+                var maSeries = new LineSeries{ LineStyle=LineStyle.Dash, Title="MA7" };
+                for(int i=0;i<series.Count;i++) maSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(series[i].day), ma[i]));
+                modelTrend.Series.Add(maSeries);
+            }
             _plotTrend.Model = modelTrend;
 
             // 2) 尺码销量（降序）
@@ -549,16 +540,12 @@ if (other > 0)
                                  .Where(a=>!string.IsNullOrWhiteSpace(a.Key) && a.Qty!=0)
                                  .OrderByDescending(a=>a.Qty).ToList();
 
-            var modelSize = new PlotModel { Title = "尺码销量", PlotMargins = new OxyThickness(80,6,40,6) };
+            var modelSize = new PlotModel { Title = "尺码销量", PlotMargins = new OxyThickness(80,6,6,6) };
             var sizeCat = new CategoryAxis{ Position=AxisPosition.Left, GapWidth=0.4, StartPosition=1, EndPosition=0 };
             foreach(var a in sizeAgg) sizeCat.Labels.Add(a.Key);
             modelSize.Axes.Add(sizeCat);
             modelSize.Axes.Add(new LinearAxis{ Position = AxisPosition.Bottom, MinimumPadding = 0, AbsoluteMinimum = 0 });
-            var bsSize = new BarSeries {
-                LabelFormatString = "{0}",
-                LabelPlacement = LabelPlacement.Outside,
-                LabelMargin = 6
-            };
+            var bsSize = new BarSeries();
             foreach(var a in sizeAgg) bsSize.Items.Add(new BarItem{ Value=a.Qty });
             modelSize.Series.Add(bsSize);
             _plotSize.Model = modelSize;
@@ -568,16 +555,12 @@ if (other > 0)
                                   .Where(a=>!string.IsNullOrWhiteSpace(a.Key) && a.Qty!=0)
                                   .OrderByDescending(a=>a.Qty).ToList();
 
-            var modelColor = new PlotModel { Title = "颜色销量", PlotMargins = new OxyThickness(80,6,40,6) };
+            var modelColor = new PlotModel { Title = "颜色销量", PlotMargins = new OxyThickness(80,6,6,6) };
             var colorCat = new CategoryAxis{ Position=AxisPosition.Left, GapWidth=0.4, StartPosition=1, EndPosition=0 };
             foreach(var a in colorAgg) colorCat.Labels.Add(a.Key);
             modelColor.Axes.Add(colorCat);
             modelColor.Axes.Add(new LinearAxis{ Position = AxisPosition.Bottom, MinimumPadding=0, AbsoluteMinimum=0 });
-            var bsColor = new BarSeries {
-                LabelFormatString = "{0}",
-                LabelPlacement = LabelPlacement.Outside,
-                LabelMargin = 6
-            };
+            var bsColor = new BarSeries();
             foreach(var a in colorAgg) bsColor.Items.Add(new BarItem{ Value=a.Qty });
             modelColor.Series.Add(bsColor);
             _plotColor.Model = modelColor;
@@ -630,20 +613,22 @@ if (other > 0)
 
             // 趋势
             var ws2 = wb.AddWorksheet("趋势");
-            ws2.Cell(1,1).Value="日期"; ws2.Cell(1,2).Value="数量";
-            var series = Aggregations.BuildDateSeries(_sales, _trendWindow);
-int rr = 2;
-for (int i = 0; i < series.Count; i++)
-{
-    ws2.Cell(rr, 1).Value = series[i].day.ToString("yyyy-MM-dd");
-    ws2.Cell(rr, 2).Value = series[i].qty;
-    rr++;
-}
-ws2.Columns().AdjustToContents();
+            ws2.Cell(1,1).Value="日期"; ws2.Cell(1,2).Value="数量"; ws2.Cell(1,3).Value="MA7(若显示)";
+            var series = Aggregations.BuildDateSeries(_sales,_trendWindow);
+            var ma = Aggregations.MovingAverage(series.Select(x=> (double)x.qty).ToList(), 7);
+            int rr=2;
+            for(int i=0;i<series.Count;i++){
+                ws2.Cell(rr,1).Value=series[i].day.ToString("yyyy-MM-dd");
+                ws2.Cell(rr,2).Value=series[i].qty;
+                ws2.Cell(rr,3).Value=(_cfg.ui?.showMovingAverage ?? false) ? ma[i] : 0;
+                rr++;
+            }
+            ws2.Columns().AdjustToContents();
 
             // 口径说明
             var ws3 = wb.AddWorksheet("口径说明");
             ws3.Cell(1,1).Value="趋势窗口（天）"; ws3.Cell(1,2).Value=_trendWindow;
+            ws3.Cell(2,1).Value="是否显示MA7"; ws3.Cell(2,2).Value=(_cfg.ui?.showMovingAverage ?? false) ? "是" : "否";
             ws3.Cell(3,1).Value="库存天数阈值"; ws3.Cell(3,2).Value=$"红<{_cfg.inventoryAlert?.docRed ?? 3}，黄<{_cfg.inventoryAlert?.docYellow ?? 7}";
             ws3.Cell(4,1).Value="销量基线天数"; ws3.Cell(4,2).Value=_cfg.inventoryAlert?.minSalesWindowDays ?? 7;
             ws3.Columns().AdjustToContents();
