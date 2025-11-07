@@ -271,10 +271,10 @@ namespace StyleWatcherWin
             _tabs.TabPages.Add(detail);
 
             // 库存
-            var inv = new TabPage("库存") { BackColor = Color.White };
+            _inventoryPage.Text = "库存";
+            _inventoryPage.BackColor = Color.White;
             _inventoryPage.Dock = DockStyle.Fill;
-            inv.Controls.Add(_inventoryPage);
-            _tabs.TabPages.Add(inv);
+            _tabs.TabPages.Add(_inventoryPage);
         }
 
         private Control BuildOverviewLayout()
