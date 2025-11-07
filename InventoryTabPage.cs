@@ -654,6 +654,17 @@ namespace StyleWatcherWin
                 .ToList();
         }
 
+
+
+        public int TotalAvailable()
+        {
+            return _all?.TotalAvailable ?? 0;
+        }
+
+        public System.Collections.Generic.IEnumerable<string> ZeroSizes()
+        {
+            return CurrentZeroSizes();
+        }
     }
 }
 #pragma warning restore 0618
