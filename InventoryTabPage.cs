@@ -656,15 +656,20 @@ namespace StyleWatcherWin
 
 
 
-        public int TotalAvailable()
-        {
-            return _all?.TotalAvailable ?? 0;
-        }
+public int TotalAvailable()
+{
+    if (_all == null || _all.Rows == null)
+        return 0;
+    int sum = 0;
+    foreach (var r in _all.Rows)
+        sum += r.Available;
+    return sum;
+}
 
-        public System.Collections.Generic.IEnumerable<string> ZeroSizes()
-        {
-            return CurrentZeroSizes();
-        }
+public System.Collections.Generic.IEnumerable<string> ZeroSizes()
+{
+    return CurrentZeroSizes();
+}
     }
 }
 #pragma warning restore 0618
