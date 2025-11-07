@@ -110,19 +110,20 @@ namespace StyleWatcherWin
             root.Controls.Add(content,0,1);
 
             _kpi.Dock = DockStyle.Fill;
-            _kpi.FlowDirection = FlowDirection.LeftToRight;
-            _kpi.WrapContents = true;
-            _kpi.Padding = new Padding(12,8,12,8);
-            _kpi.Controls.Add(MakeKpi(_kpiSales7,"近7日销量","—"));
-            _kpi.Controls.Add(MakeKpi(_kpiInv,"可用库存总量","—"));
-            _kpi.Controls.Add(MakeKpi(_kpiDoc,"库存天数","—"));
-            _kpi.Controls.Add(MakeKpiMissing(_kpiMissing,"缺货尺码"));
-            
-// 新增：按需显示的三个占位 KPI 卡片（内容为 1、2、3）
+_kpi.FlowDirection = FlowDirection.LeftToRight;
+_kpi.WrapContents = true;
+_kpi.Padding = new Padding(12, 8, 12, 8);
+
+// KPI 顺序：缺码 KPI 放在最后
+_kpi.Controls.Add(MakeKpi(_kpiSales7, "近7日销量", "—"));
+_kpi.Controls.Add(MakeKpi(_kpiInv, "可用库存总量", "—"));
+_kpi.Controls.Add(MakeKpi(_kpiDoc, "库存天数", "—"));
 _kpi.Controls.Add(MakeKpi(_kpiGrade, "定级", "—"));
 _kpi.Controls.Add(MakeKpi(_kpiMinPrice, "最低价", "—"));
 _kpi.Controls.Add(MakeKpi(_kpiBreakeven, "保本价", "—"));
-content.Controls.Add(_kpi,0,0);
+_kpi.Controls.Add(MakeKpiMissing(_kpiMissing, "缺货尺码"));
+
+content.Controls.Add(_kpi, 0, 0);
 
             _tabs.Dock = DockStyle.Fill;
             BuildTabs();
@@ -346,8 +347,20 @@ content.Controls.Add(_kpi,0,0);
         public void ShowNoActivateAtCursor(){ try{ StartPosition=FormStartPosition.Manual; var pt=Cursor.Position; Location=new Point(Math.Max(0,pt.X-Width/2),Math.Max(0,pt.Y-Height/2)); Show(); }catch{ Show(); } }
         public void ShowAndFocusCentered(){ ShowAndFocusCentered(_cfg.window.alwaysOnTop); }
         public void ShowAndFocusCentered(bool alwaysOnTop){ TopMost=alwaysOnTop; StartPosition=FormStartPosition.CenterScreen; Show(); Activate(); FocusInput(); }
-        public void SetLoading(string message){ SetKpiValue(_kpiSales7,"—"); SetKpiValue(_kpiInv,"—"); SetKpiValue(_kpiDoc,"—"); SetKpiValue(_kpiMissing,"—"); }
-        public async void ApplyRawText(string selection, string parsed){ _input.Text=selection??string.Empty; _lastDisplayText = parsed ?? string.Empty; await LoadTextAsync(parsed??string.Empty); }
+        public void SetLoading(string message)
+{
+    _status.Text = message ?? string.Empty;
+
+    SetKpiValue(_kpiSales7, "—");
+    SetKpiValue(_kpiInv, "—");
+    SetKpiValue(_kpiDoc, "—");
+    SetKpiValue(_kpiGrade, "—");
+    SetKpiValue(_kpiMinPrice, "—");
+    SetKpiValue(_kpiBreakeven, "—");
+    SetMissingSizes(Array.Empty<string>());
+}
+
+public async void ApplyRawText(string selection, string parsed){ _input.Text=selection??string.Empty; _lastDisplayText = parsed ?? string.Empty; await LoadTextAsync(parsed??string.Empty); }
         public void ApplyRawText(string text){ _input.Text=text??string.Empty; }
 
         public async Task LoadTextAsync(string raw)=>await ReloadAsync(raw);
