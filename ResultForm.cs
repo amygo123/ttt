@@ -62,7 +62,10 @@ namespace StyleWatcherWin
         private readonly PlotView _plotColor = new();
         private readonly PlotView _plotWarehouse = new();
 
-        // Detail
+                // Status
+        private readonly Label _status = new();
+
+// Detail
         private readonly DataGridView _grid = new();
         private readonly BindingSource _binding = new();
         private readonly TextBox _boxSearch = new();
