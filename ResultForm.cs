@@ -111,6 +111,7 @@ namespace StyleWatcherWin
             BuildKpis();
             root.Controls.Add(_kpiPanel, 0, 1);
 
+            _inventoryPage = new InventoryTabPage(_cfg);
             _tabs.Dock = DockStyle.Fill;
             BuildTabs();
             root.Controls.Add(_tabs, 0, 2);
@@ -121,9 +122,7 @@ namespace StyleWatcherWin
             _status.TextAlign = ContentAlignment.MiddleLeft;
             _status.ForeColor = Color.DimGray;
             Controls.Add(_status);
-
-            _inventoryPage = new InventoryTabPage(_cfg);
-        }
+}
 
         #region UI 构建
 
