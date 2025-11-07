@@ -497,7 +497,30 @@ namespace StyleWatcherWin
 
         #region 加载与解析
 
-        public async Task LoadTextAsync(string raw)
+        
+private async Task ManualQueryAsync(string text)
+{
+    text = text?.Trim() ?? string.Empty;
+    if (string.IsNullOrEmpty(text))
+    {
+        MessageBox.Show(this, "请输入要解析的文本。", "提示",
+            MessageBoxButtons.OK, MessageBoxIcon.Information);
+        return;
+    }
+
+    SetLoading("查询中...");
+    try
+    {
+        var raw = await ApiHelper.QueryAsync(_cfg, text);
+        await LoadTextAsync(raw);
+    }
+    catch (Exception ex)
+    {
+        _status.Text = "查询失败：" + ex.Message;
+    }
+}
+
+public async Task LoadTextAsync(string raw)
             => await ReloadAsync(raw);
 
         private async Task ReloadAsync()
