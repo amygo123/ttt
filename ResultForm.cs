@@ -154,64 +154,104 @@ namespace StyleWatcherWin
 
         #region 对 TrayApp 暴露的方法
 
-        public void ShowAndFocusCentered(bool topMost)
-        {
-            TopMost = topMost;
-            if (!Visible) Show();
-            WindowState = FormWindowState.Normal;
-            Activate();
+public void ShowAndFocusCentered(bool topMost)
+{
+    TopMost = topMost;
+    if (!Visible) Show();
+    WindowState = FormWindowState.Normal;
+    Activate();
 
-            var screen = Screen.FromControl(this).WorkingArea;
-            Left = screen.Left + (screen.Width - Width) / 2;
-            Top = screen.Top + (screen.Height - Height) / 2;
-        }
+    var screen = Screen.FromControl(this).WorkingArea;
+    Left = screen.Left + (screen.Width - Width) / 2;
+    Top = screen.Top + (screen.Height - Height) / 2;
+}
 
-        public void SetLoading(string message)
-        {
-            _status.Text = message;
-            SetKpi(_kpiSales7, "—");
-            SetKpi(_kpiInv, "—");
-            SetKpi(_kpiDoc, "—");
-            SetKpi(_kpiGrade, "—");
-            SetKpi(_kpiMinPrice, "—");
-            SetKpi(_kpiBreakeven, "—");
-            SetKpi(_kpiMissing, "—");
-        }
+/// <summary>
+/// 仅聚焦输入框（托盘快捷键使用）。
+/// </summary>
+public void FocusInput()
+{
+    try
+    {
+        if (!Visible) Show();
+        Activate();
+        _boxInput.Focus();
+        _boxInput.SelectAll();
+    }
+    catch
+    {
+        // ignore
+    }
+}
 
-        /// <summary>
-        /// TrayApp 调用：传入原始选中文本 + 解析服务返回的文本（已格式化）。
-        /// </summary>
-        public void ApplyRawText(string input, string result)
-        {
-            _rawInput = input ?? string.Empty;
-            _rawResult = result ?? string.Empty;
+/// <summary>
+/// 在鼠标附近显示窗口（托盘图标点击使用），尽量不抢焦点。
+/// </summary>
+public void ShowNoActivateAtCursor()
+{
+    try
+    {
+        var cursor = Cursor.Position;
+        if (!Visible)
+            Show();
+        WindowState = FormWindowState.Normal;
+        StartPosition = FormStartPosition.Manual;
+        Location = new Point(
+            Math.Max(0, cursor.X - Width / 2),
+            Math.Max(0, cursor.Y - Height / 2));
+    }
+    catch
+    {
+        // ignore
+    }
+}
 
-            try
-            {
-                _parsed = Parser.Parse(_rawResult);
-            }
-            catch
-            {
-                _parsed = Parser.Parse(_rawResult ?? string.Empty);
-            }
+public void SetLoading(string message)
+{
+    _status.Text = message;
+    SetKpi(_kpiSales7, "—");
+    SetKpi(_kpiInv, "—");
+    SetKpi(_kpiDoc, "—");
+    SetKpi(_kpiGrade, "—");
+    SetKpi(_kpiMinPrice, "—");
+    SetKpi(_kpiBreakeven, "—");
+    SetKpi(_kpiMissing, "—");
+}
 
-            _sales = (_parsed?.Records ?? new List<SaleRecord>())
-                .OrderBy(r => r.Date)
-                .ToList();
+/// <summary>
+/// TrayApp 调用：传入原始选中文本 + 解析服务返回的文本（已格式化）。
+/// </summary>
+public void ApplyRawText(string input, string result)
+{
+    _rawInput = input ?? string.Empty;
+    _rawResult = result ?? string.Empty;
 
-            _styleName = _parsed?.StyleName
-                         ?? _sales.FirstOrDefault()?.Name
-                         ?? string.Empty;
+    try
+    {
+        _parsed = Parser.Parse(_rawResult);
+    }
+    catch
+    {
+        _parsed = Parser.Parse(_rawResult ?? string.Empty);
+    }
 
-            BindSales();
-            UpdateKpisBase();
-            RenderChartsSafe();
-            _ = LoadInventoryAndPriceAsync(_styleName);
+    _sales = (_parsed?.Records ?? new List<SaleRecord>())
+        .OrderBy(r => r.Date)
+        .ToList();
 
-            _status.Text = $"解析完成：明细 {_sales.Count} 条；款号：{(_styleName ?? "未知")}";
-        }
+    _styleName = _parsed?.StyleName
+                 ?? _sales.FirstOrDefault()?.Name
+                 ?? string.Empty;
 
-        #endregion
+    BindSales();
+    UpdateKpisBase();
+    RenderChartsSafe();
+    _ = LoadInventoryAndPriceAsync(_styleName);
+
+    _status.Text = $"解析完成：明细 {_sales.Count} 条；款号：{(_styleName ?? "未知")}";
+}
+
+#endregion
 
         #region 初始化子视图
 
@@ -505,12 +545,12 @@ namespace StyleWatcherWin
                 // 数值标注
                 foreach (var p in line.Points)
                 {
-                    model.Annotations.Add(new TextAnnotation
+                    model.Annotations.Add(new OxyPlot.Annotations.TextAnnotation
                     {
                         Position = new DataPoint(p.X, p.Y),
                         Text = p.Y.ToString("0"),
-                        TextHorizontalAlignment = HorizontalAlignment.Center,
-                        TextVerticalAlignment = VerticalAlignment.Bottom,
+                        TextHorizontalAlignment = OxyPlot.HorizontalAlignment.Center,
+                        TextVerticalAlignment = OxyPlot.VerticalAlignment.Bottom,
                         Stroke = OxyColors.Transparent,
                         FontSize = 9,
                         Offset = new ScreenVector(0, -4)

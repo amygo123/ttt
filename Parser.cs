@@ -18,6 +18,7 @@ namespace StyleWatcherWin
     public class ParsedPayload
     {
         public string Title { get; set; } = "";
+        public string StyleName { get; set; } = "";
         public string Yesterday { get; set; } = "";
         public int?   Sum7d { get; set; }
         public List<SaleRecord> Records { get; set; } = new List<SaleRecord>();
@@ -43,7 +44,11 @@ namespace StyleWatcherWin
         public static ParsedPayload Parse(string raw)
         {
             var result = new ParsedPayload();
-            if (string.IsNullOrWhiteSpace(raw)) return result;
+            if (string.IsNullOrWhiteSpace(raw))             if (string.IsNullOrEmpty(result.StyleName) && result.Records.Count > 0)
+            {
+                result.StyleName = result.Records[0].Name;
+            }
+            return result;
 
             var text = raw.Replace("\\n", "\n").Replace("\r\n", "\n").Trim();
 
