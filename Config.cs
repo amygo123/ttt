@@ -1,41 +1,40 @@
 using System;
 using System.IO;
+using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace StyleWatcherWin
 {
+    /// <summary>
+    /// 全局配置：仅保留当前工程实际使用的配置项。
+    /// </summary>
     public class AppConfig
     {
         public string api_url { get; set; } = "http://47.111.189.27:8089/qrcode/saleVolumeParser";
         public string method { get; set; } = "POST";
         public string json_key { get; set; } = "code";
         public int timeout_seconds { get; set; } = 6;
+
         public string hotkey { get; set; } = "Alt+S";
 
         public WindowCfg window { get; set; } = new WindowCfg();
         public Headers headers { get; set; } = new Headers();
-
-        // A2: 库存接口
         public InventoryCfg inventory { get; set; } = new InventoryCfg();
-
-        // 新增：UI 配置（趋势窗口、是否显示 MA）
         public UiCfg ui { get; set; } = new UiCfg();
-
-        // 新增：库存天数与销量窗口的告警阈值
         public InventoryAlertCfg inventoryAlert { get; set; } = new InventoryAlertCfg();
 
         public class WindowCfg
         {
-            public int width { get; set; } = 560;
-            public int height { get; set; } = 380;
+            public int width { get; set; } = 1600;
+            public int height { get; set; } = 900;
             public int fontSize { get; set; } = 13;
             public bool alwaysOnTop { get; set; } = true;
         }
 
         public class Headers
         {
-            // 兼容 "Content-Type" 键名
             [JsonPropertyName("Content-Type")]
             public string Content_Type { get; set; } = "application/json";
             public string Authorization { get; set; } = string.Empty;
@@ -43,24 +42,33 @@ namespace StyleWatcherWin
 
         public class InventoryCfg
         {
-            public string url_base { get; set; } = "http://192.168.40.97:8000/inventory?style_name=";
-            public string default_style { get; set; } = "";
+            /// <summary>库存查询基础地址，后续会拼接 ?style_name=xxx 或直接追加款号。</summary>
+            public string url_base { get; set; } = "http://192.168.40.97:8000/inventory";
         }
 
         public class UiCfg
         {
+            /// <summary>趋势窗口（天）</summary>
             public int[] trendWindows { get; set; } = new[] { 7, 14, 30 };
+
+            /// <summary>是否在趋势图上叠加移动平均线（由 ResultForm 使用）</summary>
             public bool showMovingAverage { get; set; } = true;
         }
 
         public class InventoryAlertCfg
         {
-            public double docRed { get; set; } = 3;         // 库存天数 < 3 天：红
-            public double docYellow { get; set; } = 7;      // 库存天数 < 7 天：黄
-            public int minSalesWindowDays { get; set; } = 7;// 最近 N 天销量作为基线
+            /// <summary>预计可售天数 &lt;= docRed 标红</summary>
+            public double docRed { get; set; } = 3;
+
+            /// <summary>预计可售天数 &lt;= docYellow 标黄</summary>
+            public double docYellow { get; set; } = 7;
+
+            /// <summary>计算日均销量的最小窗口天数</summary>
+            public int minSalesWindowDays { get; set; } = 7;
         }
 
-        public static string ConfigPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
+        private static string ConfigPath =>
+            Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
 
         public static AppConfig Load()
         {
@@ -69,11 +77,17 @@ namespace StyleWatcherWin
                 if (File.Exists(ConfigPath))
                 {
                     var json = File.ReadAllText(ConfigPath);
-                    var cfg = JsonSerializer.Deserialize<AppConfig>(json, new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-                    return cfg ?? new AppConfig();
+                    var cfg = JsonSerializer.Deserialize<AppConfig>(
+                        json,
+                        new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                    if (cfg != null) return cfg;
                 }
             }
-            catch { }
+            catch
+            {
+                // ignore and fall back to default
+            }
+
             var def = new AppConfig();
             Save(def);
             return def;
@@ -81,87 +95,82 @@ namespace StyleWatcherWin
 
         public static void Save(AppConfig cfg)
         {
-            var json = JsonSerializer.Serialize(cfg, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(ConfigPath, json);
+            try
+            {
+                var json = JsonSerializer.Serialize(
+                    cfg,
+                    new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(ConfigPath, json);
+            }
+            catch
+            {
+                // 配置写失败不影响主流程
+            }
         }
     }
 
+    /// <summary>
+    /// 与销量解析服务通讯的唯一入口（TrayApp 调用，ResultForm 不直接访问网络）。
+    /// </summary>
     public static class ApiHelper
     {
         public static async System.Threading.Tasks.Task<string> QueryAsync(AppConfig cfg, string text)
         {
-            try
-            {
-                using var http = new System.Net.Http.HttpClient
-                {
-                    Timeout = System.TimeSpan.FromSeconds(Math.Max(3, cfg.timeout_seconds))
-                };
-                var req = new System.Net.Http.HttpRequestMessage(
-                    new System.Net.Http.HttpMethod(cfg.method ?? "POST"),
-                    cfg.api_url ?? "");
+            if (cfg == null) throw new ArgumentNullException(nameof(cfg));
+            if (string.IsNullOrWhiteSpace(cfg.api_url))
+                throw new InvalidOperationException("未配置 api_url");
 
-                req.Content = new System.Net.Http.StringContent(
-                    $"{{\"{cfg.json_key}\":\"{text?.Replace("\\","\\\\").Replace("\"","\\\"")}\"}}",
-                    System.Text.Encoding.UTF8,
-                    "application/json");
-
-                var resp = await http.SendAsync(req);
-                var raw = await resp.Content.ReadAsStringAsync();
-
-                // 若返回 JSON 带 msg 字段，则优先取之
-                try
-                {
-                    var doc = System.Text.Json.JsonDocument.Parse(raw);
-                    if (doc.RootElement.TryGetProperty("msg", out var msgEl))
-                        return msgEl.ToString();
-                    return raw;
-                }
-                catch
-                {
-                    return raw;
-                }
-            }
-            catch (System.Exception ex)
+            using var http = new HttpClient
             {
-                return $"请求失败：{ex.Message}";
-            }
-        }
-
-        // A2: 查询库存（GET）
-        public static async System.Threading.Tasks.Task<string> QueryInventoryAsync(AppConfig cfg, string styleName)
-        {
-            var baseUrl = cfg.inventory?.url_base ?? "";
-            if (string.IsNullOrWhiteSpace(baseUrl)) return "";
-            var url = baseUrl + Uri.EscapeDataString(styleName ?? "");
-            try
-            {
-                using var http = new System.Net.Http.HttpClient
-                {
-                    Timeout = System.TimeSpan.FromSeconds(Math.Max(3, cfg.timeout_seconds))
-                };
-                var resp = await http.GetAsync(url);
-                resp.EnsureSuccessStatusCode();
-                var raw = await resp.Content.ReadAsStringAsync();
-                return raw ?? "";
-            }
-            catch (System.Exception ex)
-            {
-                return $"[] // 请求失败：{ex.Message}";
-            }
-        }
-        // Real: 从价格查询服务获取定级 / 最低价 / 保本价
-        public static async System.Threading.Tasks.Task<string> QueryLookupPriceAsync(string styleName)
-        {
-            var baseUrl = "http://192.168.40.97:8002/lookup?name=";
-            var url = baseUrl + System.Uri.EscapeDataString(styleName ?? string.Empty);
-            using var http = new System.Net.Http.HttpClient
-            {
-                Timeout = System.TimeSpan.FromSeconds(Math.Max(3, 5))
+                Timeout = TimeSpan.FromSeconds(Math.Max(1, cfg.timeout_seconds))
             };
-            var resp = await http.GetAsync(url);
-            resp.EnsureSuccessStatusCode();
-            return await resp.Content.ReadAsStringAsync();
+
+            using var req = new HttpRequestMessage(
+                new HttpMethod(string.IsNullOrWhiteSpace(cfg.method) ? "POST" : cfg.method),
+                cfg.api_url);
+
+            var contentType = cfg.headers?.Content_Type;
+            if (string.IsNullOrWhiteSpace(contentType))
+                contentType = "application/json";
+
+            var payload = $"{{\"{cfg.json_key}\":\"{Escape(text)}\"}}";
+            req.Content = new StringContent(payload, Encoding.UTF8, contentType);
+
+            if (!string.IsNullOrWhiteSpace(cfg.headers?.Authorization))
+            {
+                req.Headers.TryAddWithoutValidation("Authorization", cfg.headers.Authorization);
+            }
+
+            var resp = await http.SendAsync(req);
+            var raw = await resp.Content.ReadAsStringAsync();
+
+            // 如果返回 JSON 且存在 msg 字段，则优先取 msg
+            try
+            {
+                using var doc = JsonDocument.Parse(raw);
+                if (doc.RootElement.ValueKind == JsonValueKind.Object &&
+                    doc.RootElement.TryGetProperty("msg", out var msgEl))
+                {
+                    var v = msgEl.ToString();
+                    if (!string.IsNullOrEmpty(v))
+                        return v;
+                }
+            }
+            catch
+            {
+                // ignore parse error, fall back to raw
+            }
+
+            return raw;
         }
 
+        private static string Escape(string? s)
+        {
+            if (string.IsNullOrEmpty(s)) return string.Empty;
+            return s.Replace("\\", "\\\\")
+                    .Replace("\"", "\\\"")
+                    .Replace("\r", "\\r")
+                    .Replace("\n", "\\n");
+        }
     }
 }
