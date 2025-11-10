@@ -118,10 +118,10 @@ namespace StyleWatcherWin
 
         private class InvRow
         {
-            public string Name { get; set; }
-            public string Color { get; set; }
-            public string Size { get; set; }
-            public string Warehouse { get; set; }
+            public string Name { get; set; } = string.Empty;
+            public string Color { get; set; } = string.Empty;
+            public string Size { get; set; } = string.Empty;
+            public string Warehouse { get; set; } = string.Empty;
             public int Available { get; set; }
             public int OnHand { get; set; }
         }

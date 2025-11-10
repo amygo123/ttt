@@ -141,7 +141,39 @@ namespace StyleWatcherWin
             _ = ReloadAsync(_lastDisplayText);
         }
 
-        public async Task ReloadAsync(string displayText = null)
+
+        public void FocusInput()
+        {
+            if (_txtInput != null)
+            {
+                _txtInput.Focus();
+                _txtInput.SelectAll();
+            }
+        }
+
+        public void ShowAndFocusCentered()
+        {
+            StartPosition = FormStartPosition.Manual;
+            var screen = Screen.PrimaryScreen.WorkingArea;
+            Location = new Point(
+                Math.Max(0, (screen.Width - Width) / 2),
+                Math.Max(0, (screen.Height - Height) / 2));
+            Show();
+            Activate();
+            FocusInput();
+        }
+
+        public void ShowNoActivateAtCursor()
+        {
+            StartPosition = FormStartPosition.Manual;
+            var p = Cursor.Position;
+            Location = new Point(
+                Math.Max(0, p.X - Width / 2),
+                Math.Max(0, p.Y - 40));
+            Show();
+        }
+
+        public System.Threading.Tasks.Task ReloadAsync(string? displayText = null)
         {
             displayText = displayText ?? _lastDisplayText;
 
@@ -209,6 +241,8 @@ namespace StyleWatcherWin
                 _lblStatus.Text = "解析失败：" + ex.Message;
                 _lblStatus.ForeColor = Color.Red;
             }
+            return System.Threading.Tasks.Task.CompletedTask;
+        
         }
 
         private static string GuessStyleName(ParsedPayload parsed)
