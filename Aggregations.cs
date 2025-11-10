@@ -4,18 +4,9 @@ using System.Linq;
 
 namespace StyleWatcherWin
 {
-    /// <summary>
-    /// 聚合与格式化工具。
-    /// - SalesItem：ResultForm 等用于图表/统计的轻量销售条目。
-    /// - BuildDateSeries：基于 SalesItem 的按日汇总（用于趋势图、导出）。
-    /// - FormatNumber：K/M 缩写格式化，用于 KPI 展示。
-    /// 已彻底移除 MA7 / MovingAverage 相关逻辑。
-    /// </summary>
     public static class Aggregations
     {
-        /// <summary>
-        /// 概览和图表使用的基础销售条目（与解析结构解耦的轻量 DTO）。
-        /// </summary>
+        // —— 数据模型 —— //
         public struct SalesItem
         {
             public DateTime Date;
@@ -24,57 +15,51 @@ namespace StyleWatcherWin
             public int Qty;
         }
 
-        /// <summary>
-        /// 将 SalesItem 列表按天聚合为最近 windowDays 天（含最后一天）的时间序列。
-        /// 若列表为空或 windowDays &lt;= 0，则返回空列表。
-        /// </summary>
+        // —— 趋势序列：补齐日期（含 0）并按日升序 —— //
         public static List<(DateTime day, int qty)> BuildDateSeries(IEnumerable<SalesItem> items, int windowDays)
         {
-            var result = new List<(DateTime day, int qty)>();
-            if (items == null)
-                return result;
-
-            var list = items.ToList();
-            if (list.Count == 0 || windowDays <= 0)
-                return result;
-
-            // 以数据中的最大日期作为结束日期
-            var maxDate = list.Max(x => x.Date.Date);
-            var minDate = maxDate.AddDays(-(windowDays - 1));
-
-            var byDate = list
-                .Where(x => x.Date.Date >= minDate && x.Date.Date <= maxDate)
+            var end = DateTime.Today;                   // 包含今日
+            var start = end.AddDays(-(windowDays - 1)); // 向前 N-1 天
+            var dict = items
+                .Where(x => x.Date.Date >= start && x.Date.Date <= end)
                 .GroupBy(x => x.Date.Date)
-                .ToDictionary(
-                    g => g.Key,
-                    g => g.Sum(s => s.Qty)
-                );
+                .ToDictionary(g => g.Key, g => g.Sum(z => z.Qty));
 
-            for (var d = minDate; d <= maxDate; d = d.AddDays(1))
+            var res = new List<(DateTime, int)>();
+            for (var d = start; d <= end; d = d.AddDays(1))
             {
-                byDate.TryGetValue(d, out var qty);
-                result.Add((d, qty));
+                dict.TryGetValue(d.Date, out var q);
+                res.Add((d.Date, q));
+            }
+            return res;
+        }
+
+        // —— 移动平均（不足长度或空时安全返回 0） —— //
+        public static List<double> MovingAverage(IList<double> src, int n)
+        {
+            var result = new List<double>(src.Count);
+            if (src.Count == 0 || n <= 1)
+            {
+                for (int i=0;i<src.Count;i++) result.Add(0);
+                return result;
             }
 
+            double sum = 0;
+            for (int i=0;i<src.Count;i++)
+            {
+                sum += src[i];
+                if (i >= n) sum -= src[i - n];
+                if (i < n - 1) result.Add(0);
+                else result.Add(sum / n);
+            }
             return result;
         }
 
-        /// <summary>
-        /// 数字格式化：
-        /// - &gt;= 1,000,000 显示为 xM
-        /// - &gt;= 1,000 显示为 xK
-        /// - 否则显示整数
-        /// </summary>
+        // —— 数字格式化（K/M） —— //
         public static string FormatNumber(double v)
         {
-            var av = Math.Abs(v);
-
-            if (av >= 1_000_000d)
-                return (v / 1_000_000d).ToString("0.##") + "M";
-
-            if (av >= 1_000d)
-                return (v / 1_000d).ToString("0.##") + "K";
-
+            if (Math.Abs(v) >= 1_000_000) return (v/1_000_000d).ToString("0.##") + "M";
+            if (Math.Abs(v) >= 1_000) return (v/1_000d).ToString("0.##") + "K";
             return v.ToString("0");
         }
     }
