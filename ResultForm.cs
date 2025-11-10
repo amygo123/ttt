@@ -541,15 +541,7 @@ if (other > 0)
             var line = new LineSeries{ Title="销量", MarkerType=MarkerType.Circle, LabelFormatString="{1:0}"};
             foreach(var (day,qty) in series) line.Points.Add(new DataPoint(DateTimeAxis.ToDouble(day), qty));
             modelTrend.Series.Add(line);
-
-            if (_cfg.ui?.showMovingAverage ?? false)
-            {
-                var ma = Aggregations.MovingAverage(series.Select(x=> (double)x.qty).ToList(), 7);
-                var maSeries = new LineSeries{ LineStyle=LineStyle.Dash, Title="MA7" };
-                for(int i=0;i<series.Count;i++) maSeries.Points.Add(new DataPoint(DateTimeAxis.ToDouble(series[i].day), ma[i]));
-                modelTrend.Series.Add(maSeries);
-            }
-            _plotTrend.Model = modelTrend;
+_plotTrend.Model = modelTrend;
 
             // 2) 尺码销量（降序）
             var sizeAgg = cleaned.GroupBy(x=>x.Size).Select(g=> new { Key=g.Key, Qty=g.Sum(z=>z.Qty)})
@@ -629,14 +621,14 @@ if (other > 0)
 
             // 趋势
             var ws2 = wb.AddWorksheet("趋势");
-            ws2.Cell(1,1).Value="日期"; ws2.Cell(1,2).Value="数量"; ws2.Cell(1,3).Value="MA7(若显示)";
+            ws2.Cell(1,1).Value="日期"; ws2.Cell(1,2).Value="数量"; ws2.Cell(1,3).Value="(若显示)";
             var series = Aggregations.BuildDateSeries(_sales,_trendWindow);
-            var ma = Aggregations.MovingAverage(series.Select(x=> (double)x.qty).ToList(), 7);
-            int rr=2;
+
+int rr=2;
             for(int i=0;i<series.Count;i++){
                 ws2.Cell(rr,1).Value=series[i].day.ToString("yyyy-MM-dd");
                 ws2.Cell(rr,2).Value=series[i].qty;
-                ws2.Cell(rr,3).Value=(_cfg.ui?.showMovingAverage ?? false) ? ma[i] : 0;
+                ws2.Cell(rr,3).Value=(_cfg.ui?. ?? false) ? ma[i] : 0;
                 rr++;
             }
             ws2.Columns().AdjustToContents();
@@ -644,7 +636,7 @@ if (other > 0)
             // 口径说明
             var ws3 = wb.AddWorksheet("口径说明");
             ws3.Cell(1,1).Value="趋势窗口（天）"; ws3.Cell(1,2).Value=_trendWindow;
-            ws3.Cell(2,1).Value="是否显示MA7"; ws3.Cell(2,2).Value=(_cfg.ui?.showMovingAverage ?? false) ? "是" : "否";
+            ws3.Cell(2,1).Value="是否显示"; ws3.Cell(2,2).Value=(_cfg.ui?. ?? false) ? "是" : "否";
             ws3.Cell(3,1).Value="库存天数阈值"; ws3.Cell(3,2).Value=$"红<{_cfg.inventoryAlert?.docRed ?? 3}，黄<{_cfg.inventoryAlert?.docYellow ?? 7}";
             ws3.Cell(4,1).Value="销量基线天数"; ws3.Cell(4,2).Value=_cfg.inventoryAlert?.minSalesWindowDays ?? 7;
             ws3.Columns().AdjustToContents();

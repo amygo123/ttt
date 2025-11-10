@@ -232,7 +232,7 @@ namespace StyleWatcherWin
         #region 绘图与缩放（柱状图降序 + 默认 Top10）
         private void RenderBarsByColor(InvSnapshot snap, PlotView pv, string title)
         {
-            var model = new PlotModel { Title = title };
+            var model = new PlotModel { Title = title, PlotMargins = new OxyThickness(80, 10, 20, 40) };
             var data = snap.Rows.GroupBy(r => r.Color)
                                 .Select(g => new { Key = g.Key, V = g.Sum(x => x.Available) })
                                 .OrderByDescending(x => x.V)
@@ -263,7 +263,7 @@ namespace StyleWatcherWin
 
         private void RenderBarsBySize(InvSnapshot snap, PlotView pv, string title)
         {
-            var model = new PlotModel { Title = title };
+            var model = new PlotModel { Title = title, PlotMargins = new OxyThickness(80, 10, 20, 40) };
             var data = snap.Rows.GroupBy(r => r.Size)
                                 .Select(g => new { Key = g.Key, V = g.Sum(x => x.Available) })
                                 .OrderByDescending(x => x.V)
@@ -336,7 +336,7 @@ namespace StyleWatcherWin
                 data[ci[g.Key.Color], si[g.Key.Size]] = g.Sum(x => x.Available);
             }
 
-            var model = new PlotModel { Title = title };
+            var model = new PlotModel { Title = title, PlotMargins = new OxyThickness(80, 10, 20, 40) };
 
             // 统计分布
             var vals = new List<double>();

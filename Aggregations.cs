@@ -35,16 +35,7 @@ namespace StyleWatcherWin
         }
 
         // —— 移动平均（不足长度或空时安全返回 0） —— //
-        public static List<double> MovingAverage(IList<double> src, int n)
-        {
-            var result = new List<double>(src.Count);
-            if (src.Count == 0 || n <= 1)
-            {
-                for (int i=0;i<src.Count;i++) result.Add(0);
-                return result;
-            }
-
-            double sum = 0;
+double sum = 0;
             for (int i=0;i<src.Count;i++)
             {
                 sum += src[i];
