@@ -538,7 +538,7 @@ if (other > 0)
             var yAxis = new LinearAxis{ Position=AxisPosition.Left, MinimumPadding=0, AbsoluteMinimum=0, MajorGridlineStyle=LineStyle.Solid };
             modelTrend.Axes.Add(xAxis); modelTrend.Axes.Add(yAxis);
 
-            var line = new LineSeries{ Title="销量", MarkerType=MarkerType.Circle, LabelFormatString="{1:0}", LabelPlacement=LabelPlacement.Outside, LabelMargin=4 };
+            var line = new LineSeries{ Title="销量", MarkerType=MarkerType.Circle, LabelFormatString="{1:0}"};
             foreach(var (day,qty) in series) line.Points.Add(new DataPoint(DateTimeAxis.ToDouble(day), qty));
             modelTrend.Series.Add(line);
 
