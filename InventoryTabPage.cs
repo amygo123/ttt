@@ -249,12 +249,7 @@ namespace StyleWatcherWin
             foreach (var d in data) cat.Labels.Add(d.Key);
 
             var val = new LinearAxis { Position = AxisPosition.Bottom, MinorGridlineStyle = LineStyle.Dot, MajorGridlineStyle = LineStyle.Solid, IsZoomEnabled = true, IsPanEnabled = true };
-            var series = new BarSeries
-            {
-                LabelFormatString = "{0}",
-                LabelPlacement = LabelPlacement.Inside,
-                LabelMargin = 6
-            };
+            var series = new BarSeries{ LabelFormatString = "{0}", LabelPlacement = LabelPlacement.Outside, LabelMargin = 4 };
             foreach (var d in data) series.Items.Add(new BarItem(d.V));
 
             model.Axes.Add(cat);
@@ -284,12 +279,7 @@ namespace StyleWatcherWin
             foreach (var d in data) cat.Labels.Add(d.Key);
 
             var val = new LinearAxis { Position = AxisPosition.Bottom, MinorGridlineStyle = LineStyle.Dot, MajorGridlineStyle = LineStyle.Solid, IsZoomEnabled = true, IsPanEnabled = true };
-            var series = new BarSeries
-            {
-                LabelFormatString = "{0}",
-                LabelPlacement = LabelPlacement.Inside,
-                LabelMargin = 6
-            };
+            var series = new BarSeries{ LabelFormatString = "{0}", LabelPlacement = LabelPlacement.Outside, LabelMargin = 4 };
             foreach (var d in data) series.Items.Add(new BarItem(d.V));
 
             model.Axes.Add(cat);
