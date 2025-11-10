@@ -38,23 +38,24 @@ namespace StyleWatcherWin
 
         public class InventoryCfg
         {
-            // 库存查询基础地址，例如: http://127.0.0.1:8000/inventory?style_name=
-            public string url_base { get; set; } = "";
-            // 款式信息 / 价格查询基础地址，可选
+            // 库存查询基础地址，按当前实现要求包含 style_name 参数
+            public string url_base { get; set; } = "http://192.168.40.97:8000/inventory?style_name=";
+
+            // 款式信息 / 价格查询基础地址（可选）
             public string price_url_base { get; set; } = "";
         }
 
         public class UiCfg
         {
-            // 趋势窗口配置（如 [7,14,30]）
+            // 趋势窗口配置（保留多窗口支持，不含 MA7 逻辑）
             public int[] trendWindows { get; set; } = new[] { 7, 14, 30 };
         }
 
         public class InventoryAlertCfg
         {
-            public double docRed { get; set; } = 3;         // 库存天数 < 3：红
-            public double docYellow { get; set; } = 7;      // 库存天数 < 7：黄
-            public int minSalesWindowDays { get; set; } = 7;// 最近 N 天销量作为基线
+            public double docRed { get; set; } = 3;
+            public double docYellow { get; set; } = 7;
+            public int minSalesWindowDays { get; set; } = 7;
         }
 
         public static string ConfigPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "appsettings.json");
@@ -83,7 +84,6 @@ namespace StyleWatcherWin
             }
             catch
             {
-                // 配置损坏时返回默认，避免程序直接崩
                 return new AppConfig();
             }
         }
@@ -106,6 +106,7 @@ namespace StyleWatcherWin
             if (string.IsNullOrWhiteSpace(cfg.api_url)) return "请求失败：未配置 api_url";
 
             var method = string.IsNullOrWhiteSpace(cfg.method) ? "POST" : cfg.method.ToUpperInvariant();
+
             using var http = new HttpClient
             {
                 Timeout = TimeSpan.FromSeconds(Math.Max(1, cfg.timeout_seconds))
@@ -114,7 +115,6 @@ namespace StyleWatcherWin
             var url = cfg.api_url;
             var request = new HttpRequestMessage(new HttpMethod(method), url);
 
-            // 附加 headers
             if (cfg.headers?.ExtraHeaders != null)
             {
                 foreach (var kv in cfg.headers.ExtraHeaders)
@@ -122,17 +122,13 @@ namespace StyleWatcherWin
                     var value = kv.Value.ToString().Trim('"');
                     if (!string.IsNullOrWhiteSpace(value))
                     {
-                        if (!request.Headers.TryAddWithoutValidation(kv.Key, value))
-                        {
-                            // 部分 header 可能需要加到 Content 上，简单情况忽略
-                        }
+                        request.Headers.TryAddWithoutValidation(kv.Key, value);
                     }
                 }
             }
 
             if (method == "GET")
             {
-                // GET 模式下，把内容作为查询参数（仅做兜底使用）
                 var key = string.IsNullOrWhiteSpace(cfg.json_key) ? "code" : cfg.json_key;
                 var connector = url.Contains("?") ? "&" : "?";
                 request.RequestUri = new Uri(url + connector + Uri.EscapeDataString(key) + "=" + Uri.EscapeDataString(text ?? string.Empty));
@@ -207,6 +203,7 @@ namespace StyleWatcherWin
                 return "";
 
             var url = baseUrl + Uri.EscapeDataString(styleName);
+
             using var http = new HttpClient
             {
                 Timeout = TimeSpan.FromSeconds(Math.Max(1, cfg.timeout_seconds))
