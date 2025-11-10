@@ -14,8 +14,7 @@ namespace StyleWatcherWin
     public static class Aggregations
     {
         /// <summary>
-        /// 概览与图表示例使用的基础销售条目。
-        /// 注意：这是轻量 DTO，不替代原始解析结构。
+        /// 概览和图表使用的基础销售条目（与解析结构解耦的轻量 DTO）。
         /// </summary>
         public struct SalesItem
         {
@@ -26,13 +25,12 @@ namespace StyleWatcherWin
         }
 
         /// <summary>
-        /// 将 SalesItem 列表按天聚合为最近 windowDays 天（含末日）的时间序列。
-        /// 若列表为空或 windowDays <= 0，则返回空列表。
+        /// 将 SalesItem 列表按天聚合为最近 windowDays 天（含最后一天）的时间序列。
+        /// 若列表为空或 windowDays &lt;= 0，则返回空列表。
         /// </summary>
         public static List<(DateTime day, int qty)> BuildDateSeries(IEnumerable<SalesItem> items, int windowDays)
         {
             var result = new List<(DateTime day, int qty)>();
-
             if (items == null)
                 return result;
 
@@ -40,7 +38,7 @@ namespace StyleWatcherWin
             if (list.Count == 0 || windowDays <= 0)
                 return result;
 
-            // 以数据中的最大日期作为窗口结束日
+            // 以数据中的最大日期作为结束日期
             var maxDate = list.Max(x => x.Date.Date);
             var minDate = maxDate.AddDays(-(windowDays - 1));
 
@@ -63,8 +61,8 @@ namespace StyleWatcherWin
 
         /// <summary>
         /// 数字格式化：
-        /// - >= 1,000,000 显示为 xM
-        /// - >= 1,000 显示为 xK
+        /// - &gt;= 1,000,000 显示为 xM
+        /// - &gt;= 1,000 显示为 xK
         /// - 否则显示整数
         /// </summary>
         public static string FormatNumber(double v)
