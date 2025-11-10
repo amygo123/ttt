@@ -621,14 +621,15 @@ _plotTrend.Model = modelTrend;
 
             // 趋势
             var ws2 = wb.AddWorksheet("趋势");
-            ws2.Cell(1,1).Value="日期"; ws2.Cell(1,2).Value="数量"; ws2.Cell(1,3).Value="(若显示)";
-            var series = Aggregations.BuildDateSeries(_sales,_trendWindow);
+            ws2.Cell(1, 1).Value = "日期";
+            ws2.Cell(1, 2).Value = "数量";
 
-int rr=2;
-            for(int i=0;i<series.Count;i++){
-                ws2.Cell(rr,1).Value=series[i].day.ToString("yyyy-MM-dd");
-                ws2.Cell(rr,2).Value=series[i].qty;
-                ws2.Cell(rr,3).Value=(_cfg.ui?. ?? false) ? ma[i] : 0;
+            var series = Aggregations.BuildDateSeries(_sales, _trendWindow);
+            var rr = 2;
+            for (int i = 0; i < series.Count; i++)
+            {
+                ws2.Cell(rr, 1).Value = series[i].day.ToString("yyyy-MM-dd");
+                ws2.Cell(rr, 2).Value = series[i].qty;
                 rr++;
             }
             ws2.Columns().AdjustToContents();
@@ -636,7 +637,7 @@ int rr=2;
             // 口径说明
             var ws3 = wb.AddWorksheet("口径说明");
             ws3.Cell(1,1).Value="趋势窗口（天）"; ws3.Cell(1,2).Value=_trendWindow;
-            ws3.Cell(2,1).Value="是否显示"; ws3.Cell(2,2).Value=(_cfg.ui?. ?? false) ? "是" : "否";
+            ws3.Cell(2,1).Value="说明"; ws3.Cell(2,2).Value="展示近 N 日销量趋势和分布";
             ws3.Cell(3,1).Value="库存天数阈值"; ws3.Cell(3,2).Value=$"红<{_cfg.inventoryAlert?.docRed ?? 3}，黄<{_cfg.inventoryAlert?.docYellow ?? 7}";
             ws3.Cell(4,1).Value="销量基线天数"; ws3.Cell(4,2).Value=_cfg.inventoryAlert?.minSalesWindowDays ?? 7;
             ws3.Columns().AdjustToContents();
