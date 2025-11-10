@@ -33,7 +33,29 @@ namespace StyleWatcherWin
             }
             return res;
         }
-// —— 数字格式化（K/M） —— //
+
+        // —— 移动平均（不足长度或空时安全返回 0） —— //
+        public static List<double> MovingAverage(IList<double> src, int n)
+        {
+            var result = new List<double>(src.Count);
+            if (src.Count == 0 || n <= 1)
+            {
+                for (int i=0;i<src.Count;i++) result.Add(0);
+                return result;
+            }
+
+            double sum = 0;
+            for (int i=0;i<src.Count;i++)
+            {
+                sum += src[i];
+                if (i >= n) sum -= src[i - n];
+                if (i < n - 1) result.Add(0);
+                else result.Add(sum / n);
+            }
+            return result;
+        }
+
+        // —— 数字格式化（K/M） —— //
         public static string FormatNumber(double v)
         {
             if (Math.Abs(v) >= 1_000_000) return (v/1_000_000d).ToString("0.##") + "M";
