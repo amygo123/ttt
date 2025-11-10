@@ -343,7 +343,7 @@ namespace StyleWatcherWin
 
                 try
                 {
-                    System.Diagnostics.Process.Start("explorer.exe", "/select,"" + path + """);
+                    System.Diagnostics.Process.Start("explorer.exe", "/select,\"" + path + "\"");
                 }
                 catch { }
 
