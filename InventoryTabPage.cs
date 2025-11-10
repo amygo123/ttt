@@ -248,7 +248,7 @@ namespace StyleWatcherWin
             };
             foreach (var d in data) cat.Labels.Add(d.Key);
 
-            var val = new LinearAxis { Position = AxisPosition.Bottom, MinorGridlineStyle = LineStyle.Dot, MajorGridlineStyle = LineStyle.Solid, IsZoomEnabled = true, IsPanEnabled = true };
+            var val = new LinearAxis { MaximumPadding = 0.2, Position = AxisPosition.Bottom, MinorGridlineStyle = LineStyle.Dot, MajorGridlineStyle = LineStyle.Solid, IsZoomEnabled = true, IsPanEnabled = true };
             var series = new BarSeries();
             foreach (var d in data) series.Items.Add(new BarItem(d.V));
 
@@ -278,7 +278,7 @@ namespace StyleWatcherWin
             };
             foreach (var d in data) cat.Labels.Add(d.Key);
 
-            var val = new LinearAxis { Position = AxisPosition.Bottom, MinorGridlineStyle = LineStyle.Dot, MajorGridlineStyle = LineStyle.Solid, IsZoomEnabled = true, IsPanEnabled = true };
+            var val = new LinearAxis { MaximumPadding = 0.2, Position = AxisPosition.Bottom, MinorGridlineStyle = LineStyle.Dot, MajorGridlineStyle = LineStyle.Solid, IsZoomEnabled = true, IsPanEnabled = true };
             var series = new BarSeries();
             foreach (var d in data) series.Items.Add(new BarItem(d.V));
 
@@ -369,29 +369,25 @@ namespace StyleWatcherWin
 
             // 类目映射轴
             var axX = new LinearAxis
-            {
-                Position = AxisPosition.Bottom,
+            { MaximumPadding = 0.2, Position = AxisPosition.Bottom,
                 Minimum = -0.5, Maximum = Math.Max(colors.Count - 0.5, 0.5),
                 MajorStep = 1, MinorStep = 1,
                 IsZoomEnabled = true, IsPanEnabled = true,
                 LabelFormatter = d =>
                 {
                     var k = (int)Math.Round(d);
-                    return (k >= 0 && k < colors.Count) ? colors[k] : "";
-                }
+                    return (k >= 0 && k < colors.Count) ? colors[k] : ""; }
             };
 
             var axY = new LinearAxis
-            {
-                Position = AxisPosition.Left,
+            { MaximumPadding = 0.2, Position = AxisPosition.Left,
                 Minimum = -0.5, Maximum = Math.Max(sizes.Count - 0.5, 0.5),
                 MajorStep = 1, MinorStep = 1,
                 IsZoomEnabled = true, IsPanEnabled = true,
                 LabelFormatter = d =>
                 {
                     var k = (int)Math.Round(d);
-                    return (k >= 0 && k < sizes.Count) ? sizes[k] : "";
-                }
+                    return (k >= 0 && k < sizes.Count) ? sizes[k] : ""; }
             };
 
             model.Axes.Add(axX);
