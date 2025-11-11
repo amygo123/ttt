@@ -120,7 +120,7 @@ namespace StyleWatcherWin
             var filler = new Panel { Dock = DockStyle.Fill };
             p.Controls.Add(filler, 2, 0);
 
-            var btnReload = new Button { Text = "刷新", AutoSize = true, Padding = new Padding(8,3,8,3), FlatStyle = FlatStyle.Flat };
+            var btnReload = new Button { Text = "刷新", AutoSize = true, Padding = new Padding(10, 4, 10, 4), FlatStyle = FlatStyle.Flat };
             btnReload.Click += async (s, e) => await ReloadAsync(_styleName);
             p.Controls.Add(btnReload, 3, 0);
 
