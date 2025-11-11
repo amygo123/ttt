@@ -85,7 +85,7 @@ namespace StyleWatcherWin
             Visible = false;
 
             // 托盘图标
-            _tray.Text = "款式信息";
+            _tray.Text = "随手查";
             try
             {
                 var exeIcon = Icon.ExtractAssociatedIcon(Application.ExecutablePath);

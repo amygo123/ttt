@@ -86,7 +86,10 @@ private readonly DataGridView _vipGrid = new()
     AllowUserToDeleteRows = false,
     RowHeadersVisible = false,
     VirtualMode = true,
-    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells
+    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells,
+    EnableHeadersVisualStyles = false,
+    BorderStyle = BorderStyle.None,
+    CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal
 };
 private readonly TextBox _vipSearchBox = new();
 private readonly System.Windows.Forms.Timer _vipSearchDebounce = new() { Interval = 200 };
@@ -120,7 +123,7 @@ private static readonly HttpClient _vipHttp = new();
         {
             _cfg = cfg;
 
-            Text = "StyleWatcher";
+            Text = "随手查";
             Font = new Font("Microsoft YaHei UI", _cfg.window.fontSize);
             Width = Math.Max(1600, _cfg.window.width);
             Height = Math.Max(900, _cfg.window.height);
@@ -177,7 +180,7 @@ content.Controls.Add(_kpi, 0, 0);
             _input.Height = 30;
 
             _btnQuery.Text="查询";
-            _btnQuery.AutoSize=true; _btnQuery.Padding=new Padding(10,6,10,6);
+            _btnQuery.AutoSize=true; _btnQuery.Padding=new Padding(8,3,8,3); _btnQuery.FlatStyle = FlatStyle.Flat;
             _btnQuery.Click += async (s,e)=>
 {
     var txt = _input.Text ?? string.Empty;
@@ -208,7 +211,7 @@ content.Controls.Add(_kpi, 0, 0);
 };
 
             _btnExport.Text="导出Excel";
-            _btnExport.AutoSize=true; _btnExport.Padding=new Padding(10,6,10,6);
+            _btnExport.AutoSize=true; _btnExport.Padding=new Padding(8,3,8,3); _btnExport.FlatStyle = FlatStyle.Flat;
             _btnExport.Click += (s,e)=> ExportExcel();
 
             head.Controls.Add(_input,0,0);
@@ -220,7 +223,7 @@ content.Controls.Add(_kpi, 0, 0);
         private Control MakeKpi(Panel host,string title,string value)
         {
             host.Width=260; host.Height=110; host.Padding=new Padding(10);
-            host.BackColor=Color.FromArgb(250,250,250); host.BorderStyle=BorderStyle.FixedSingle;
+            host.BackColor=Color.FromArgb(250,250,252); host.BorderStyle=BorderStyle.None; host.Paint += (s,e)=>{ var r=((Panel)s).ClientRectangle; r.Inflate(-1,-1); e.Graphics.SmoothingMode=System.Drawing.Drawing2D.SmoothingMode.AntiAlias; using(var pen=new Pen(Color.FromArgb(230,235,245))) e.Graphics.DrawRectangle(pen, r); };
             host.Margin = new Padding(8,4,8,4);
 
             var inner = new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=2};
@@ -241,7 +244,7 @@ content.Controls.Add(_kpi, 0, 0);
         private Control MakeKpiMissing(Panel host, string title)
         {
             host.Width=260; host.Height=110; host.Padding=new Padding(10);
-            host.BackColor=Color.FromArgb(250,250,250); host.BorderStyle=BorderStyle.FixedSingle;
+            host.BackColor=Color.FromArgb(250,250,252); host.BorderStyle=BorderStyle.None; host.Paint += (s,e)=>{ var r=((Panel)s).ClientRectangle; r.Inflate(-1,-1); e.Graphics.SmoothingMode=System.Drawing.Drawing2D.SmoothingMode.AntiAlias; using(var pen=new Pen(Color.FromArgb(230,235,245))) e.Graphics.DrawRectangle(pen, r); };
             host.Margin = new Padding(8,4,8,4);
 
             var inner = new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=2};
@@ -372,6 +375,13 @@ content.Controls.Add(_kpi, 0, 0);
 
             _grid.Dock=DockStyle.Fill; _grid.ReadOnly=true; _grid.AllowUserToAddRows=false; _grid.AllowUserToDeleteRows=false;
             _grid.RowHeadersVisible=false; _grid.AutoSizeColumnsMode=DataGridViewAutoSizeColumnsMode.AllCells;
+            _grid.EnableHeadersVisualStyles = false;
+            _grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(245,247,250);
+            _grid.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(47,47,47);
+            _grid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(249,251,255);
+            _grid.GridColor = Color.FromArgb(230,235,245);
+            _grid.BorderStyle = BorderStyle.None;
+            _grid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
             _grid.DataSource=_binding;
             panel.Controls.Add(_grid,0,2);
             detail.Controls.Add(panel);
@@ -432,6 +442,7 @@ vipLayout.Controls.Add(_vipGrid, 0, 1);
 
 _vipInvTab.Controls.Add(vipLayout);
 _tabs.TabPages.Add(_vipInvTab);
+            StyleVipGrid();
 
 _vipGrid.CellValueNeeded += VipGrid_CellValueNeeded;
 _vipGrid.ColumnHeaderMouseClick += VipGrid_ColumnHeaderMouseClick;
@@ -1156,5 +1167,13 @@ if (other > 0)
             BuildVipColumnsAndBind();
             _vipGrid.Invalidate();
         }
-    }
+    
+        private void StyleVipGrid()
+        {
+            _vipGrid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(245,247,250);
+            _vipGrid.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(47,47,47);
+            _vipGrid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(249,251,255);
+            _vipGrid.GridColor = Color.FromArgb(230,235,245);
+        }
+}
 }
