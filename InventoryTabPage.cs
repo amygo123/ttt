@@ -230,56 +230,32 @@ namespace StyleWatcherWin
         #endregion
 
         #region 绘图与缩放（柱状图降序 + 默认 Top10）
-        
         private void RenderBarsByColor(InvSnapshot snap, PlotView pv, string title)
         {
-            var model = new PlotModel
-            {
-                Title = title,
-                // 为条形图预留足够左右空间，避免 Outside 标签被裁剪
-                PlotMargins = new OxyThickness(100, 10, 40, 40)
-            };
-
-            var data = snap.Rows
-                .GroupBy(r => r.Color)
-                .Select(g => new { Key = g.Key, V = g.Sum(x => x.Available) })
-                .OrderByDescending(x => x.V)
-                .ToList();
+            var model = new PlotModel { Title = title };
+            var data = snap.Rows.GroupBy(r => r.Color)
+                                .Select(g => new { Key = g.Key, V = g.Sum(x => x.Available) })
+                                .OrderByDescending(x => x.V)
+                                .ToList();
 
             var cat = new CategoryAxis
             {
                 Position = AxisPosition.Left,
                 IsZoomEnabled = true,
                 IsPanEnabled = true,
-                StartPosition = 1,
-                EndPosition = 0
+                // 关键：翻转轴方向，确保数据按我们添加的顺序从上到下显示
+                StartPosition = 1, EndPosition = 0
             };
-            foreach (var d in data)
-            {
-                cat.Labels.Add(d.Key);
-            }
+            foreach (var d in data) cat.Labels.Add(d.Key);
 
-            var val = new LinearAxis
-            {
-                Position = AxisPosition.Bottom,
-                Minimum = 0,
-                MajorGridlineStyle = LineStyle.Solid,
-                MinorGridlineStyle = LineStyle.Dot,
-                IsZoomEnabled = true,
-                IsPanEnabled = true,
-                MaximumPadding = 0.3
-            };
-
+            var val = new LinearAxis { Position = AxisPosition.Bottom, MinorGridlineStyle = LineStyle.Dot, MajorGridlineStyle = LineStyle.Solid, IsZoomEnabled = true, IsPanEnabled = true };
             var series = new BarSeries
             {
                 LabelFormatString = "{0}",
-                LabelPlacement = LabelPlacement.Outside,
-                LabelMargin = 4
+                LabelPlacement = LabelPlacement.Inside,
+                LabelMargin = 6
             };
-            foreach (var d in data)
-            {
-                series.Items.Add(new BarItem(d.V));
-            }
+            foreach (var d in data) series.Items.Add(new BarItem(d.V));
 
             model.Axes.Add(cat);
             model.Axes.Add(val);
@@ -290,57 +266,31 @@ namespace StyleWatcherWin
             BindPanZoom(pv);
         }
 
-
-        
         private void RenderBarsBySize(InvSnapshot snap, PlotView pv, string title)
         {
-            var model = new PlotModel
-            {
-                Title = title,
-                // 为条形图预留足够左右空间，避免 Outside 标签被裁剪
-                PlotMargins = new OxyThickness(100, 10, 40, 40)
-            };
-
-            var data = snap.Rows
-                .GroupBy(r => r.Size)
-                .Select(g => new { Key = g.Key, V = g.Sum(x => x.Available) })
-                .OrderByDescending(x => x.V)
-                .ToList();
+            var model = new PlotModel { Title = title };
+            var data = snap.Rows.GroupBy(r => r.Size)
+                                .Select(g => new { Key = g.Key, V = g.Sum(x => x.Available) })
+                                .OrderByDescending(x => x.V)
+                                .ToList();
 
             var cat = new CategoryAxis
             {
                 Position = AxisPosition.Left,
                 IsZoomEnabled = true,
                 IsPanEnabled = true,
-                StartPosition = 1,
-                EndPosition = 0
+                StartPosition = 1, EndPosition = 0
             };
-            foreach (var d in data)
-            {
-                cat.Labels.Add(d.Key);
-            }
+            foreach (var d in data) cat.Labels.Add(d.Key);
 
-            var val = new LinearAxis
-            {
-                Position = AxisPosition.Bottom,
-                Minimum = 0,
-                MajorGridlineStyle = LineStyle.Solid,
-                MinorGridlineStyle = LineStyle.Dot,
-                IsZoomEnabled = true,
-                IsPanEnabled = true,
-                MaximumPadding = 0.3
-            };
-
+            var val = new LinearAxis { Position = AxisPosition.Bottom, MinorGridlineStyle = LineStyle.Dot, MajorGridlineStyle = LineStyle.Solid, IsZoomEnabled = true, IsPanEnabled = true };
             var series = new BarSeries
             {
                 LabelFormatString = "{0}",
-                LabelPlacement = LabelPlacement.Outside,
-                LabelMargin = 4
+                LabelPlacement = LabelPlacement.Inside,
+                LabelMargin = 6
             };
-            foreach (var d in data)
-            {
-                series.Items.Add(new BarItem(d.V));
-            }
+            foreach (var d in data) series.Items.Add(new BarItem(d.V));
 
             model.Axes.Add(cat);
             model.Axes.Add(val);
@@ -350,7 +300,6 @@ namespace StyleWatcherWin
             ApplyTopNZoom(cat, data.Count, 10);
             BindPanZoom(pv);
         }
-
 
         private void ApplyTopNZoom(CategoryAxis cat, int total, int n)
         {
@@ -397,12 +346,7 @@ namespace StyleWatcherWin
                 data[ci[g.Key.Color], si[g.Key.Size]] = g.Sum(x => x.Available);
             }
 
-            var model = new PlotModel
-            {
-                Title = title,
-                // 为热力图预留周围留白，确保完整可见
-                PlotMargins = new OxyThickness(80, 20, 40, 40)
-            };
+            var model = new PlotModel { Title = title };
 
             // 统计分布
             var vals = new List<double>();
