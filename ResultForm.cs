@@ -36,7 +36,6 @@ namespace StyleWatcherWin
         private readonly AppConfig _cfg;
 
         
-        private readonly Func<System.Threading.Tasks.Task>? _requeryAction;
 // Header
         private readonly TextBox _input = new();
         private readonly Button _btnQuery = new();
@@ -87,9 +86,8 @@ namespace StyleWatcherWin
         private int _invOnHandTotal = 0;
         private Dictionary<string,int> _invWarehouse = new Dictionary<string,int>();
 
-        public ResultForm(AppConfig cfg, Func<System.Threading.Tasks.Task>? requeryAction = null)
+        public ResultForm(AppConfig cfg)
         {
-            _requeryAction = requeryAction;
             _cfg = cfg;
 
             Text = "StyleWatcher";
@@ -148,7 +146,7 @@ content.Controls.Add(_kpi, 0, 0);
             _input.MinimumSize = new Size(420,32);
             _input.Height = 30;
 
-            _btnQuery.Text="重新查询";
+            _btnQuery.Text="查询";
             _btnQuery.AutoSize=true; _btnQuery.Padding=new Padding(10,6,10,6);
             _btnQuery.Click += async (s,e)=>
 {
@@ -160,7 +158,7 @@ content.Controls.Add(_kpi, 0, 0);
     {
         if (string.IsNullOrEmpty(txt))
         {
-            SetLoading("未检测到输入内容，请先在上方输入内容后再点击“重新查询”。");
+            SetLoading("未检测到输入内容，请先在上方输入内容后再点击“查询”。");
             return;
         }
 
@@ -353,6 +351,10 @@ content.Controls.Add(_kpi, 0, 0);
             _invPage = new InventoryTabPage(_cfg);
             _invPage.SummaryUpdated += OnInventorySummary;
             _tabs.TabPages.Add(_invPage);
+
+            // 唯品库存页（占位，内容暂为空）
+            var vipTab = new TabPage("唯品库存") { BackColor = Color.White };
+            _tabs.TabPages.Add(vipTab);
         }
 
         private static Label? ValueLabelOf(Panel p)
