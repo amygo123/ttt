@@ -153,7 +153,7 @@ namespace StyleWatcherWin
         {
             if (_window == null || _window.IsDisposed)
             {
-                _window = new ResultForm(_cfg);
+                _window = new ResultForm(_cfg, OnHotkeyAsync);
                 _window.FormClosing += (s, e) =>
                 {
                     if (!_allowCloseAll)

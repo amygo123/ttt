@@ -35,7 +35,9 @@ namespace StyleWatcherWin
 
         private readonly AppConfig _cfg;
 
-        // Header
+        
+        private readonly Func<System.Threading.Tasks.Task>? _requeryAction;
+// Header
         private readonly TextBox _input = new();
         private readonly Button _btnQuery = new();
         private readonly Button _btnExport = new();
@@ -85,8 +87,9 @@ namespace StyleWatcherWin
         private int _invOnHandTotal = 0;
         private Dictionary<string,int> _invWarehouse = new Dictionary<string,int>();
 
-        public ResultForm(AppConfig cfg)
+        public ResultForm(AppConfig cfg, Func<System.Threading.Tasks.Task>? requeryAction = null)
         {
+            _requeryAction = requeryAction;
             _cfg = cfg;
 
             Text = "StyleWatcher";
@@ -147,7 +150,34 @@ content.Controls.Add(_kpi, 0, 0);
 
             _btnQuery.Text="重新查询";
             _btnQuery.AutoSize=true; _btnQuery.Padding=new Padding(10,6,10,6);
-            _btnQuery.Click += async (s,e)=>{ _btnQuery.Enabled=false; try{ await ReloadAsync(""); } finally{ _btnQuery.Enabled=true; } };
+            _btnQuery.Click += async (s,e)=>
+{
+    var txt = _input.Text ?? string.Empty;
+    txt = txt.Trim();
+
+    _btnQuery.Enabled = false;
+    try
+    {
+        if (string.IsNullOrEmpty(txt))
+        {
+            SetLoading("未检测到输入内容，请先在上方输入内容后再点击“重新查询”。");
+            return;
+        }
+
+        SetLoading("查询中...");
+        var raw = await ApiHelper.QueryAsync(_cfg, txt);
+        var result = Formatter.Prettify(raw);
+        ApplyRawText(txt, result);
+    }
+    catch (Exception ex)
+    {
+        SetLoading($"错误：{ex.Message}");
+    }
+    finally
+    {
+        _btnQuery.Enabled = true;
+    }
+};
 
             _btnExport.Text="导出Excel";
             _btnExport.AutoSize=true; _btnExport.Padding=new Padding(10,6,10,6);
