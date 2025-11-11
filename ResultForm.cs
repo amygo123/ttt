@@ -5,6 +5,8 @@ using System.Drawing;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using System.Net.Http;
+using System.Text.Json;
 using System.Windows.Forms;
 using ClosedXML.Excel;
 using OxyPlot;
@@ -35,8 +37,7 @@ namespace StyleWatcherWin
 
         private readonly AppConfig _cfg;
 
-        
-// Header
+        // Header
         private readonly TextBox _input = new();
         private readonly Button _btnQuery = new();
         private readonly Button _btnExport = new();
@@ -75,6 +76,11 @@ namespace StyleWatcherWin
 
         // Inventory page
         private InventoryTabPage? _invPage;
+
+        // Vip inventory page
+        private TabPage? _vipInvTab;
+        private readonly DataGridView _vipGrid = new() { Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false, AllowUserToDeleteRows = false, RowHeadersVisible = false, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells };
+        private static readonly HttpClient _vipHttp = new HttpClient();
 
         // Caches
         private string _lastDisplayText = string.Empty;
@@ -146,36 +152,9 @@ content.Controls.Add(_kpi, 0, 0);
             _input.MinimumSize = new Size(420,32);
             _input.Height = 30;
 
-            _btnQuery.Text="查询";
+            _btnQuery.Text="重新查询";
             _btnQuery.AutoSize=true; _btnQuery.Padding=new Padding(10,6,10,6);
-            _btnQuery.Click += async (s,e)=>
-{
-    var txt = _input.Text ?? string.Empty;
-    txt = txt.Trim();
-
-    _btnQuery.Enabled = false;
-    try
-    {
-        if (string.IsNullOrEmpty(txt))
-        {
-            SetLoading("未检测到输入内容，请先在上方输入内容后再点击“查询”。");
-            return;
-        }
-
-        SetLoading("查询中...");
-        var raw = await ApiHelper.QueryAsync(_cfg, txt);
-        var result = Formatter.Prettify(raw);
-        ApplyRawText(txt, result);
-    }
-    catch (Exception ex)
-    {
-        SetLoading($"错误：{ex.Message}");
-    }
-    finally
-    {
-        _btnQuery.Enabled = true;
-    }
-};
+            _btnQuery.Click += async (s,e)=>{ _btnQuery.Enabled=false; try{ await ReloadAsync(""); } finally{ _btnQuery.Enabled=true; } };
 
             _btnExport.Text="导出Excel";
             _btnExport.AutoSize=true; _btnExport.Padding=new Padding(10,6,10,6);
@@ -352,9 +331,16 @@ content.Controls.Add(_kpi, 0, 0);
             _invPage.SummaryUpdated += OnInventorySummary;
             _tabs.TabPages.Add(_invPage);
 
-            // 唯品库存页（占位，内容暂为空）
-            var vipTab = new TabPage("唯品库存") { BackColor = Color.White };
-            _tabs.TabPages.Add(vipTab);
+            // 唯品库存页
+            _vipInvTab = new TabPage("唯品库存") { BackColor = Color.White };
+            var vipLayout = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2, Padding = new Padding(12) };
+            vipLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 32));
+            vipLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+            var vipNote = new Label { AutoSize = true, Text = "基于唯品库存接口实时查询，列头与返回字段保持一致。", ForeColor = Color.FromArgb(120,120,120) };
+            vipLayout.Controls.Add(vipNote, 0, 0);
+            vipLayout.Controls.Add(_vipGrid, 0, 1);
+            _vipInvTab.Controls.Add(vipLayout);
+            _tabs.TabPages.Add(_vipInvTab);
         }
 
         private static Label? ValueLabelOf(Panel p)
@@ -450,7 +436,125 @@ var styleName = parsed.Records
 if (!string.IsNullOrWhiteSpace(styleName))
             {
                 try { _ = _invPage?.LoadInventoryAsync(styleName); } catch {}
+                try { _ = LoadVipInventoryAsync(styleName); } catch {}
                 try { _ = LoadPriceAsync(styleName); } catch {}
+            }
+        }
+
+        
+
+        private async Task LoadVipInventoryAsync(string styleName)
+        {
+            if (_vipInvTab == null || _vipGrid == null) return;
+
+            var rows = await FetchVipInventoryAsync(styleName);
+            BindVipGrid(rows);
+        }
+
+        private async Task<List<Dictionary<string, object?>>> FetchVipInventoryAsync(string styleName)
+        {
+            var result = new List<Dictionary<string, object?>>();
+            if (string.IsNullOrWhiteSpace(styleName))
+                return result;
+
+            var url = "http://192.168.40.97:8001/inventory?style_name=" + Uri.EscapeDataString(styleName);
+
+            try
+            {
+                using var resp = await _vipHttp.GetAsync(url);
+                resp.EnsureSuccessStatusCode();
+                var json = await resp.Content.ReadAsStringAsync();
+
+                using var doc = JsonDocument.Parse(json);
+                if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var elem in doc.RootElement.EnumerateArray())
+                    {
+                        var dict = new Dictionary<string, object?>();
+                        foreach (var prop in elem.EnumerateObject())
+                        {
+                            object? val = null;
+                            switch (prop.Value.ValueKind)
+                            {
+                                case JsonValueKind.String:
+                                    val = prop.Value.GetString();
+                                    break;
+                                case JsonValueKind.Number:
+                                    if (prop.Value.TryGetInt64(out var iv)) val = iv;
+                                    else if (prop.Value.TryGetDouble(out var dv)) val = dv;
+                                    break;
+                                case JsonValueKind.True:
+                                case JsonValueKind.False:
+                                    val = prop.Value.GetBoolean();
+                                    break;
+                                case JsonValueKind.Null:
+                                    val = null;
+                                    break;
+                                default:
+                                    val = prop.Value.ToString();
+                                    break;
+                            }
+                            dict[prop.Name] = val;
+                        }
+                        result.Add(dict);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                result.Clear();
+                result.Add(new Dictionary<string, object?> { ["错误"] = ex.Message });
+            }
+
+            return result;
+        }
+
+        private void BindVipGrid(List<Dictionary<string, object?>> rows)
+        {
+            if (_vipGrid == null) return;
+
+            _vipGrid.SuspendLayout();
+            try
+            {
+                _vipGrid.Columns.Clear();
+                _vipGrid.Rows.Clear();
+
+                if (rows == null || rows.Count == 0)
+                    return;
+
+                var columns = new List<string>();
+                foreach (var dict in rows)
+                {
+                    if (dict == null) continue;
+                    foreach (var key in dict.Keys)
+                    {
+                        if (!columns.Contains(key))
+                            columns.Add(key);
+                    }
+                }
+
+                foreach (var col in columns)
+                {
+                    _vipGrid.Columns.Add(col, col);
+                }
+
+                foreach (var dict in rows)
+                {
+                    if (dict == null) continue;
+                    var rowIndex = _vipGrid.Rows.Add();
+                    var row = _vipGrid.Rows[rowIndex];
+                    foreach (var col in columns)
+                    {
+                        dict.TryGetValue(col, out var val);
+                        row.Cells[col].Value = val;
+                    }
+                }
+
+                _vipGrid.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.AllCells);
+            }
+            finally
+            {
+                _vipGrid.ResumeLayout();
             }
         }
 
