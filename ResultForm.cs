@@ -77,7 +77,7 @@ namespace StyleWatcherWin
 // Inventory page
 private InventoryTabPage? _invPage;
 
-// Vip inventory page
+// Vip inventory page (virtualized)
 private TabPage? _vipInvTab;
 private readonly DataGridView _vipGrid = new()
 {
@@ -86,14 +86,17 @@ private readonly DataGridView _vipGrid = new()
     AllowUserToAddRows = false,
     AllowUserToDeleteRows = false,
     RowHeadersVisible = false,
-    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells
+    VirtualMode = true,
+    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells
 };
 private readonly TextBox _vipSearchBox = new();
 private readonly System.Windows.Forms.Timer _vipSearchDebounce = new() { Interval = 200 };
+private readonly List<Dictionary<string, object?>> _vipAll = new();
+private List<Dictionary<string, object?>> _vipView = new();
+private readonly List<string> _vipColumns = new();
 private bool _vipLoaded;
 private bool _vipLoading;
-private List<Dictionary<string, object?>> _vipCache = new();
-private static readonly System.Net.Http.HttpClient _vipHttp = new();
+private static readonly HttpClient _vipHttp = new();
 
         // Caches
         private string _lastDisplayText = string.Empty;
@@ -366,12 +369,11 @@ content.Controls.Add(_kpi, 0, 0);
             detail.Controls.Add(panel);
             _tabs.TabPages.Add(detail);
 
-// 库存页
-_invPage = new InventoryTabPage(_cfg);
-_invPage.SummaryUpdated += OnInventorySummary;
-_tabs.TabPages.Add(_invPage);
-
-// 唯品库存页
+            // 库存页
+            _invPage = new InventoryTabPage(_cfg);
+            _invPage.SummaryUpdated += OnInventorySummary;
+            _tabs.TabPages.Add(_invPage);
+// 唯品库存页（虚拟模式，避免大数据渲染卡顿）
 _vipInvTab = new TabPage("唯品库存") { BackColor = Color.White };
 
 var vipLayout = new TableLayoutPanel
@@ -384,14 +386,12 @@ var vipLayout = new TableLayoutPanel
 vipLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 38));
 vipLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
 
-// 顶部搜索 + 刷新
 var vipTop = new TableLayoutPanel
 {
     Dock = DockStyle.Fill,
-    ColumnCount = 3
+    ColumnCount = 2
 };
 vipTop.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
-vipTop.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
 vipTop.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
 
 _vipSearchBox.Dock = DockStyle.Fill;
@@ -411,7 +411,7 @@ var vipRefresh = new Button
     Margin = new Padding(8, 0, 0, 0)
 };
 vipRefresh.Click += async (s, e) => await ForceReloadVipInventoryAsync();
-vipTop.Controls.Add(vipRefresh, 2, 0);
+vipTop.Controls.Add(vipRefresh, 1, 0);
 
 vipLayout.Controls.Add(vipTop, 0, 0);
 vipLayout.Controls.Add(_vipGrid, 0, 1);
@@ -419,14 +419,14 @@ vipLayout.Controls.Add(_vipGrid, 0, 1);
 _vipInvTab.Controls.Add(vipLayout);
 _tabs.TabPages.Add(_vipInvTab);
 
-// 绑定唯品搜索延迟
+_vipGrid.CellValueNeeded += VipGrid_CellValueNeeded;
+
 _vipSearchDebounce.Tick += (s, e) =>
 {
     _vipSearchDebounce.Stop();
     ApplyVipFilter(_vipSearchBox.Text);
 };
 
-// 首次切换到唯品库存时加载
 _tabs.SelectedIndexChanged += async (s, e) =>
 {
     if (_tabs.SelectedTab == _vipInvTab)
@@ -838,17 +838,20 @@ private async Task ForceReloadVipInventoryAsync()
     try
     {
         var rows = await FetchVipInventoryAsync();
-        _vipCache = rows ?? new List<Dictionary<string, object?>>();
-        BindVipGrid(_vipCache);
+        _vipAll.Clear();
+        if (rows != null) _vipAll.AddRange(rows);
+        _vipView = _vipAll.ToList();
+        BuildVipColumnsAndBind();
         _vipLoaded = true;
     }
     catch (Exception ex)
     {
-        _vipCache = new List<Dictionary<string, object?>>
+        _vipAll.Clear();
+        _vipView = new List<Dictionary<string, object?>>
         {
             new Dictionary<string, object?> { ["错误"] = ex.Message }
         };
-        BindVipGrid(_vipCache);
+        BuildVipColumnsAndBind();
         _vipLoaded = false;
     }
     finally
@@ -860,126 +863,119 @@ private async Task ForceReloadVipInventoryAsync()
 private async Task<List<Dictionary<string, object?>>> FetchVipInventoryAsync()
 {
     var result = new List<Dictionary<string, object?>>();
-
     var url = "http://192.168.40.97:8001/inventory";
 
-    using (var resp = await _vipHttp.GetAsync(url))
-    {
-        resp.EnsureSuccessStatusCode();
-        var json = await resp.Content.ReadAsStringAsync();
+    using var resp = await _vipHttp.GetAsync(url);
+    resp.EnsureSuccessStatusCode();
+    var json = await resp.Content.ReadAsStringAsync();
 
-        using var doc = System.Text.Json.JsonDocument.Parse(json);
-        if (doc.RootElement.ValueKind == System.Text.Json.JsonValueKind.Array)
+    // 大数据解析放在线程池，避免阻塞 UI
+    return await Task.Run(() =>
+    {
+        var list = new List<Dictionary<string, object?>>();
+
+        using var doc = JsonDocument.Parse(json);
+        if (doc.RootElement.ValueKind == JsonValueKind.Array)
         {
             foreach (var elem in doc.RootElement.EnumerateArray())
             {
                 var dict = new Dictionary<string, object?>();
                 foreach (var prop in elem.EnumerateObject())
                 {
-                    object? val;
-                    switch (prop.Value.ValueKind)
+                    object? val = prop.Value.ValueKind switch
                     {
-                        case System.Text.Json.JsonValueKind.String:
-                            val = prop.Value.GetString();
-                            break;
-                        case System.Text.Json.JsonValueKind.Number:
-                            if (prop.Value.TryGetInt64(out var iv)) val = iv;
-                            else if (prop.Value.TryGetDouble(out var dv)) val = dv;
-                            else val = prop.Value.ToString();
-                            break;
-                        case System.Text.Json.JsonValueKind.True:
-                        case System.Text.Json.JsonValueKind.False:
-                            val = prop.Value.GetBoolean();
-                            break;
-                        case System.Text.Json.JsonValueKind.Null:
-                            val = null;
-                            break;
-                        default:
-                            val = prop.Value.ToString();
-                            break;
-                    }
+                        JsonValueKind.String => prop.Value.GetString(),
+                        JsonValueKind.Number when prop.Value.TryGetInt64(out var iv) => iv,
+                        JsonValueKind.Number when prop.Value.TryGetDouble(out var dv) => dv,
+                        JsonValueKind.True or JsonValueKind.False => prop.Value.GetBoolean(),
+                        JsonValueKind.Null => null,
+                        _ => prop.Value.ToString()
+                    };
                     dict[prop.Name] = val;
                 }
-                result.Add(dict);
+                list.Add(dict);
             }
         }
-    }
 
-    return result;
+        return list;
+    });
 }
 
-private void ApplyVipFilter(string keyword)
-{
-    if (_vipCache == null || _vipCache.Count == 0)
-    {
-        BindVipGrid(new List<Dictionary<string, object?>>());
-        return;
-    }
-
-    if (string.IsNullOrWhiteSpace(keyword))
-    {
-        BindVipGrid(_vipCache);
-        return;
-    }
-
-    keyword = keyword.Trim();
-
-    var filtered = _vipCache
-        .Where(dict => dict != null && dict.Values.Any(v =>
-            (v?.ToString() ?? string.Empty).IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0))
-        .ToList();
-
-    BindVipGrid(filtered);
-}
-
-private void BindVipGrid(List<Dictionary<string, object?>> rows)
+private void BuildVipColumnsAndBind()
 {
     _vipGrid.SuspendLayout();
     try
     {
         _vipGrid.Columns.Clear();
-        _vipGrid.Rows.Clear();
+        _vipColumns.Clear();
 
-        if (rows == null || rows.Count == 0)
+        if (_vipView == null || _vipView.Count == 0)
+        {
+            _vipGrid.RowCount = 0;
             return;
+        }
 
-        var columns = new List<string>();
-        foreach (var dict in rows)
+        foreach (var dict in _vipView)
         {
             if (dict == null) continue;
             foreach (var key in dict.Keys)
             {
-                if (!columns.Contains(key))
-                    columns.Add(key);
+                if (!_vipColumns.Contains(key))
+                    _vipColumns.Add(key);
             }
         }
 
-        foreach (var col in columns)
+        foreach (var col in _vipColumns)
         {
-            var header = col;
-            if (col == "product_original_code")
-                header = "款式名";
+            var header = col == "product_original_code" ? "款式名" : col;
             _vipGrid.Columns.Add(col, header);
         }
 
-        foreach (var dict in rows)
-        {
-            if (dict == null) continue;
-            var rowIndex = _vipGrid.Rows.Add();
-            var row = _vipGrid.Rows[rowIndex];
-            foreach (var col in columns)
-            {
-                dict.TryGetValue(col, out var val);
-                row.Cells[col].Value = val;
-            }
-        }
-
-        _vipGrid.AutoResizeColumns(DataGridViewAutoSizeColumnsMode.AllCells);
+        _vipGrid.RowCount = _vipView.Count;
     }
     finally
     {
         _vipGrid.ResumeLayout();
     }
+}
+
+private void VipGrid_CellValueNeeded(object? sender, DataGridViewCellValueEventArgs e)
+{
+    if (_vipView == null) return;
+    if (e.RowIndex < 0 || e.RowIndex >= _vipView.Count) return;
+    if (e.ColumnIndex < 0 || e.ColumnIndex >= _vipColumns.Count) return;
+
+    var dict = _vipView[e.RowIndex];
+    if (dict == null) return;
+
+    var key = _vipColumns[e.ColumnIndex];
+    if (dict.TryGetValue(key, out var val))
+    {
+        e.Value = val;
+    }
+}
+
+private void ApplyVipFilter(string? keyword)
+{
+    if (_vipAll == null || _vipAll.Count == 0)
+    {
+        _vipView = new List<Dictionary<string, object?>>();
+    }
+    else if (string.IsNullOrWhiteSpace(keyword))
+    {
+        _vipView = _vipAll.ToList();
+    }
+    else
+    {
+        keyword = keyword.Trim();
+        _vipView = _vipAll
+            .Where(d => d != null && d.Values.Any(v =>
+                (v?.ToString() ?? string.Empty).IndexOf(keyword, StringComparison.OrdinalIgnoreCase) >= 0))
+            .ToList();
+    }
+
+    BuildVipColumnsAndBind();
+    _vipGrid.Invalidate();
 }
 }
 }
