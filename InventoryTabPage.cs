@@ -1,3 +1,4 @@
+
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
@@ -19,43 +20,16 @@ namespace StyleWatcherWin
     {
         public event Action<int, int, Dictionary<string, int>>? SummaryUpdated;
 
-        #region 数据结构
-        private sealed class InvRow
-        {
-            public string Name { get; set; } = "";
-            public string Color { get; set; } = "";
-            public string Size { get; set; } = "";
-            public string Warehouse { get; set; } = "";
-            public int Available { get; set; }
-            public int OnHand { get; set; }
-        }
-
+        private sealed class InvRow { public string Name=""; public string Color=""; public string Size=""; public string Warehouse=""; public int Available; public int OnHand; }
         private sealed class InvSnapshot
         {
             public List<InvRow> Rows { get; } = new();
-
             public int TotalAvailable => Rows.Sum(r => r.Available);
             public int TotalOnHand => Rows.Sum(r => r.OnHand);
-
-            public IEnumerable<string> ColorsNonZero() =>
-                Rows.GroupBy(r => r.Color)
-                    .Select(g => new { c = g.Key, v = g.Sum(x => x.Available) })
-                    .Where(x => !string.IsNullOrWhiteSpace(x.c) && x.v != 0)
-                    .OrderByDescending(x => x.v)
-                    .Select(x => x.c);
-
-            public IEnumerable<string> SizesNonZero() =>
-                Rows.GroupBy(r => r.Size)
-                    .Select(g => new { s = g.Key, v = g.Sum(x => x.Available) })
-                    .Where(x => !string.IsNullOrWhiteSpace(x.s) && x.v != 0)
-                    .OrderByDescending(x => x.v)
-                    .Select(x => x.s);
-
-            public Dictionary<string, int> ByWarehouse() =>
-                Rows.GroupBy(r => r.Warehouse)
-                    .ToDictionary(g => g.Key, g => g.Sum(x => x.Available));
+            public IEnumerable<string> ColorsNonZero() => Rows.GroupBy(r => r.Color).Select(g => new { c = g.Key, v = g.Sum(x => x.Available) }).Where(x => !string.IsNullOrWhiteSpace(x.c) && x.v != 0).OrderByDescending(x => x.v).Select(x => x.c);
+            public IEnumerable<string> SizesNonZero()  => Rows.GroupBy(r => r.Size ).Select(g => new { s = g.Key, v = g.Sum(x => x.Available) }).Where(x => !string.IsNullOrWhiteSpace(x.s) && x.v != 0).OrderByDescending(x => x.v).Select(x => x.s);
+            public Dictionary<string, int> ByWarehouse() => Rows.GroupBy(r => r.Warehouse).ToDictionary(g => g.Key, g => g.Sum(x => x.Available));
         }
-        #endregion
 
         private static readonly HttpClient _http = new();
 
@@ -63,23 +37,13 @@ namespace StyleWatcherWin
         private InvSnapshot _all = new();
         private string _styleName = "";
 
-        // 主要图表
         private readonly PlotView _pvHeat = new() { Dock = DockStyle.Fill, BackColor = Color.White };
         private readonly PlotView _pvColor = new() { Dock = DockStyle.Fill, BackColor = Color.White };
-        private readonly PlotView _pvSize = new() { Dock = DockStyle.Fill, BackColor = Color.White };
-
-        // 明细（总览右下）
+        private readonly PlotView _pvSize  = new() { Dock = DockStyle.Fill, BackColor = Color.White };
         private readonly DataGridView _grid = new() { Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells };
-
-        // 子 Tab（按仓库）
         private readonly TabControl _subTabs = new() { Dock = DockStyle.Fill };
 
-        // 悬浮提示
-        private readonly ToolTip _tip = new() { InitialDelay = 0, ReshowDelay = 0, AutoPopDelay = 8000, ShowAlways = true };
-
-        // 当前点击筛选（总览热力图）
         private (string? color, string? size)? _activeCell = null;
-
         private Label _lblAvail = new();
         private Label _lblOnHand = new();
 
@@ -87,9 +51,10 @@ namespace StyleWatcherWin
         {
             _cfg = cfg;
             Text = "库存";
+            BackColor = Theme.Surface;
 
             var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 3, Padding = new Padding(12) };
-            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34)); // 顶部工具条（合计/刷新）
+            root.RowStyles.Add(new RowStyle(SizeType.Absolute, 40));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 60));
             root.RowStyles.Add(new RowStyle(SizeType.Percent, 40));
             Controls.Add(root);
@@ -111,19 +76,17 @@ namespace StyleWatcherWin
             p.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
             p.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
 
-            _lblAvail = new Label { AutoSize = true, Font = new Font("Microsoft YaHei UI", 10, FontStyle.Bold) };
-            _lblOnHand = new Label { AutoSize = true, Font = new Font("Microsoft YaHei UI", 10, FontStyle.Bold), Margin = new Padding(16, 0, 0, 0) };
+            _lblAvail = new Label { AutoSize = true, Font = Theme.FontBase, ForeColor = Theme.Text };
+            _lblOnHand = new Label { AutoSize = true, Font = Theme.FontBase, Margin = new Padding(16, 0, 0, 0), ForeColor = Theme.Text };
 
             p.Controls.Add(_lblAvail, 0, 0);
             p.Controls.Add(_lblOnHand, 1, 0);
+            p.Controls.Add(new Panel { Dock = DockStyle.Fill }, 2, 0);
 
-            var filler = new Panel { Dock = DockStyle.Fill };
-            p.Controls.Add(filler, 2, 0);
-
-            var btnReload = new Button { Text = "刷新", AutoSize = true, Padding = new Padding(8,3,8,3), FlatStyle = FlatStyle.Flat };
+            var btnReload = new Button { Text = "刷新", AutoSize = true };
+            Theme.StylePrimaryButton(btnReload);
             btnReload.Click += async (s, e) => await ReloadAsync(_styleName);
             p.Controls.Add(btnReload, 3, 0);
-
             return p;
         }
 
@@ -136,35 +99,26 @@ namespace StyleWatcherWin
             grid.RowStyles.Add(new RowStyle(SizeType.Percent, 50));
 
             PrepareGridColumns(_grid);
+            Theme.StyleDataGrid(_grid);
 
             grid.Controls.Add(_pvSize, 0, 0);
             grid.Controls.Add(_pvColor, 1, 0);
             grid.Controls.Add(_pvHeat, 0, 1);
             grid.Controls.Add(_grid, 1, 1);
 
-            AttachHeatmapInteractions(_pvHeat, sel =>
-            {
-                _activeCell = sel;
-                ApplyOverviewFilter();
-            });
-
             return grid;
         }
 
-        #region 对外入口（兼容旧方法名）
         public async Task LoadAsync(string styleName)
         {
             _styleName = styleName ?? "";
             await ReloadAsync(_styleName);
         }
-
-        public Task LoadInventoryAsync(string styleName) => LoadAsync(styleName); // 兼容 ResultForm 旧调用
-        #endregion
+        public Task LoadInventoryAsync(string styleName) => LoadAsync(styleName);
 
         private async Task ReloadAsync(string styleName)
         {
-            _activeCell = null; // 清筛选
-
+            _activeCell = null;
             _all = await FetchInventoryAsync(styleName);
             RenderAll(_all);
         }
@@ -175,15 +129,14 @@ namespace StyleWatcherWin
             _lblOnHand.Text = $"现有合计：{snap.TotalOnHand}";
 
             RenderHeatmap(snap, _pvHeat, "颜色×尺码 可用数热力图");
-            RenderBarsByColor(snap, _pvColor, "颜色可用（降序，滚轮/右键查看更多）");
-            RenderBarsBySize(snap, _pvSize, "尺码可用（降序，滚轮/右键查看更多）");
+            RenderBarsByKey(snap, _pvColor, g => g.Color, "颜色可用（降序）");
+            RenderBarsByKey(snap, _pvSize,  g => g.Size,  "尺码可用（降序）");
             RenderWarehouseTabs(snap);
 
             try { SummaryUpdated?.Invoke(snap.TotalAvailable, snap.TotalOnHand, snap.ByWarehouse()); } catch { }
             BindGrid(_grid, snap.Rows);
         }
 
-        #region 数据获取/解析
         private async Task<InvSnapshot> FetchInventoryAsync(string styleName)
         {
             var s = new InvSnapshot();
@@ -192,15 +145,13 @@ namespace StyleWatcherWin
             try
             {
                 var baseUrl = (_cfg?.inventory?.url_base ?? "");
-                var url = baseUrl.Contains("style_name=")
-                    ? baseUrl + Uri.EscapeDataString(styleName)
+                var url = baseUrl.Contains("style_name=") ? baseUrl + Uri.EscapeDataString(styleName)
                     : baseUrl.TrimEnd('/') + "?style_name=" + Uri.EscapeDataString(styleName);
 
                 using var req = new HttpRequestMessage(HttpMethod.Get, url);
                 var resp = await _http.SendAsync(req);
                 var raw = await resp.Content.ReadAsStringAsync();
 
-                // 兼容：JSON 数组字符串 或 纯文本行
                 List<string>? lines = null;
                 try { lines = JsonSerializer.Deserialize<List<string>>(raw); } catch { }
                 if (lines == null) lines = raw.Replace("\r\n", "\n").Split('\n').ToList();
@@ -221,101 +172,101 @@ namespace StyleWatcherWin
                     });
                 }
             }
-            catch
-            {
-                // ignore
-            }
+            catch { }
             return s;
         }
-        #endregion
 
-        #region 绘图与缩放（柱状图降序 + 默认 Top10）
-        private void RenderBarsByColor(InvSnapshot snap, PlotView pv, string title)
+        private void RenderBarsByKey(InvSnapshot snap, PlotView pv, Func<InvRow, string> keySelector, string title)
         {
             var model = new PlotModel { Title = title };
-            var data = snap.Rows.GroupBy(r => r.Color)
-                                .Select(g => new { Key = g.Key, V = g.Sum(x => x.Available) })
-                                .OrderByDescending(x => x.V)
-                                .ToList();
+            var data = snap.Rows.GroupBy(keySelector).Select(g => new { Key = g.Key, V = g.Sum(x => x.Available) })
+                                .OrderByDescending(x => x.V).ToList();
 
-            var cat = new CategoryAxis
-            {
-                Position = AxisPosition.Left,
-                IsZoomEnabled = true,
-                IsPanEnabled = true,
-                // 关键：翻转轴方向，确保数据按我们添加的顺序从上到下显示
-                StartPosition = 1, EndPosition = 0
-            };
+            var cat = new CategoryAxis { Position = AxisPosition.Left, StartPosition = 1, EndPosition = 0 };
             foreach (var d in data) cat.Labels.Add(d.Key);
 
-            var val = new LinearAxis { Position = AxisPosition.Bottom, MinorGridlineStyle = LineStyle.Dot, MajorGridlineStyle = LineStyle.Solid, IsZoomEnabled = true, IsPanEnabled = true };
-            var series = new BarSeries
-            {
-                LabelFormatString = "{0}",
-                LabelPlacement = LabelPlacement.Inside,
-                LabelMargin = 6
-            };
+            var val = new LinearAxis { Position = AxisPosition.Bottom, MinorGridlineStyle = LineStyle.Dot, MajorGridlineStyle = LineStyle.Solid };
+            var series = new BarSeries { LabelFormatString = "{0}", LabelPlacement = LabelPlacement.Inside, LabelMargin = 6 };
             foreach (var d in data) series.Items.Add(new BarItem(d.V));
 
-            model.Axes.Add(cat);
-            model.Axes.Add(val);
-            model.Series.Add(series);
+            model.Axes.Add(cat); model.Axes.Add(val); model.Series.Add(series);
             pv.Model = model;
 
-            ApplyTopNZoom(cat, data.Count, 10);
-            BindPanZoom(pv);
+            if (data.Count > 0)
+            {
+                cat.Minimum = -0.5;
+                cat.Maximum = Math.Min(9.5, data.Count - 0.5);
+            }
         }
 
-        private void RenderBarsBySize(InvSnapshot snap, PlotView pv, string title)
+        private void RenderHeatmap(InvSnapshot snap, PlotView pv, string title)
         {
+            var colors = snap.ColorsNonZero().ToList();
+            var sizes = snap.SizesNonZero().ToList();
+            var ci = colors.Select((c, i) => (c, i)).ToDictionary(x => x.c, x => x.i);
+            var si = sizes.Select((s, i) => (s, i)).ToDictionary(x => x.s, x => x.i);
+
+            var data = new double[colors.Count, sizes.Count];
+            foreach (var g in snap.Rows.GroupBy(r => new { r.Color, r.Size }))
+            {
+                if (!ci.ContainsKey(g.Key.Color) || !si.ContainsKey(g.Key.Size)) continue;
+                data[ci[g.Key.Color], si[g.Key.Size]] = g.Sum(x => x.Available);
+            }
+
             var model = new PlotModel { Title = title };
-            var data = snap.Rows.GroupBy(r => r.Size)
-                                .Select(g => new { Key = g.Key, V = g.Sum(x => x.Available) })
-                                .OrderByDescending(x => x.V)
-                                .ToList();
+            var vals = new List<double>();
+            foreach (var v in data) if (v > 0) vals.Add(v);
+            vals.Sort();
+            var minPos = vals.Count > 0 ? vals.First() : 1.0;
+            var p95 = vals.Count > 0 ? Percentile(vals, 0.95) : 1.0;
+            if (p95 <= 0) p95 = minPos;
 
-            var cat = new CategoryAxis
+            var palette = OxyPalette.Interpolate(256,
+                OxyColor.FromRgb(229, 245, 224),
+                OxyColor.FromRgb(161, 217, 155),
+                OxyColor.FromRgb(255, 224, 102),
+                OxyColor.FromRgb(253, 174, 97),
+                OxyColor.FromRgb(244, 109, 67),
+                OxyColor.FromRgb(215, 48, 39)
+            );
+            var caxis = new LinearColorAxis
+            {
+                Position = AxisPosition.Right,
+                Palette = palette,
+                Minimum = minPos,
+                Maximum = p95,
+                LowColor = OxyColor.FromRgb(242, 242, 242),
+                HighColor = OxyColor.FromRgb(153, 0, 0)
+            };
+            model.Axes.Add(caxis);
+
+            var axX = new LinearAxis
+            {
+                Position = AxisPosition.Bottom,
+                Minimum = -0.5, Maximum = Math.Max(colors.Count - 0.5, 0.5),
+                MajorStep = 1, MinorStep = 1,
+                IsZoomEnabled = true, IsPanEnabled = true,
+                LabelFormatter = d => { var k = (int)Math.Round(d); return (k >= 0 && k < colors.Count) ? colors[k] : ""; }
+            };
+            var axY = new LinearAxis
             {
                 Position = AxisPosition.Left,
-                IsZoomEnabled = true,
-                IsPanEnabled = true,
-                StartPosition = 1, EndPosition = 0
+                Minimum = -0.5, Maximum = Math.Max(sizes.Count - 0.5, 0.5),
+                MajorStep = 1, MinorStep = 1,
+                IsZoomEnabled = true, IsPanEnabled = true,
+                LabelFormatter = d => { var k = (int)Math.Round(d); return (k >= 0 && k < sizes.Count) ? sizes[k] : ""; }
             };
-            foreach (var d in data) cat.Labels.Add(d.Key);
+            model.Axes.Add(axX); model.Axes.Add(axY);
 
-            var val = new LinearAxis { Position = AxisPosition.Bottom, MinorGridlineStyle = LineStyle.Dot, MajorGridlineStyle = LineStyle.Solid, IsZoomEnabled = true, IsPanEnabled = true };
-            var series = new BarSeries
+            var hm = new HeatMapSeries
             {
-                LabelFormatString = "{0}",
-                LabelPlacement = LabelPlacement.Inside,
-                LabelMargin = 6
+                X0 = -0.5, X1 = colors.Count - 0.5,
+                Y0 = -0.5, Y1 = sizes.Count - 0.5,
+                Interpolate = false, RenderMethod = HeatMapRenderMethod.Rectangles,
+                Data = data
             };
-            foreach (var d in data) series.Items.Add(new BarItem(d.V));
-
-            model.Axes.Add(cat);
-            model.Axes.Add(val);
-            model.Series.Add(series);
+            model.Series.Add(hm);
             pv.Model = model;
-
-            ApplyTopNZoom(cat, data.Count, 10);
-            BindPanZoom(pv);
-        }
-
-        private void ApplyTopNZoom(CategoryAxis cat, int total, int n)
-        {
-            if (total <= 0) return;
-            var maxIndex = Math.Min(n - 1, total - 1);
-            cat.Minimum = -0.5;
-            cat.Maximum = maxIndex + 0.5;
-        }
-        #endregion
-
-        #region 热力图（使用分位截断与更直观的配色）
-        private sealed class HeatmapContext
-        {
-            public List<string> Colors = new();
-            public List<string> Sizes = new();
-            public double[,] Data = new double[0, 0];
         }
 
         private static double Percentile(List<double> sorted, double p)
@@ -331,339 +282,48 @@ namespace StyleWatcherWin
             return sorted[lo] * (1 - frac) + sorted[hi] * frac;
         }
 
-        private HeatmapContext BuildHeatmap(InvSnapshot snap, PlotView pv, string title)
-        {
-            var colors = snap.ColorsNonZero().ToList();
-            var sizes = snap.SizesNonZero().ToList();
-
-            var ci = colors.Select((c, i) => (c, i)).ToDictionary(x => x.c, x => x.i);
-            var si = sizes.Select((s, i) => (s, i)).ToDictionary(x => x.s, x => x.i);
-
-            var data = new double[colors.Count, sizes.Count];
-            foreach (var g in snap.Rows.GroupBy(r => new { r.Color, r.Size }))
-            {
-                if (!ci.ContainsKey(g.Key.Color) || !si.ContainsKey(g.Key.Size)) continue;
-                data[ci[g.Key.Color], si[g.Key.Size]] = g.Sum(x => x.Available);
-            }
-
-            var model = new PlotModel { Title = title };
-
-            // 统计分布
-            var vals = new List<double>();
-            foreach (var v in data) if (v > 0) vals.Add(v);
-            vals.Sort();
-            var minPos = vals.Count > 0 ? vals.First() : 1.0;
-            var p95 = vals.Count > 0 ? Percentile(vals, 0.95) : 1.0;
-            if (p95 <= 0) p95 = minPos;
-
-            // 自定义更直观的配色：浅 -> 绿 -> 橙 -> 红
-            var palette = OxyPalette.Interpolate(256, 
-                OxyColor.FromRgb(229, 245, 224), // very light
-                OxyColor.FromRgb(161, 217, 155), // green
-                OxyColor.FromRgb(255, 224, 102), // yellow-ish
-                OxyColor.FromRgb(253, 174, 97),  // orange
-                OxyColor.FromRgb(244, 109, 67),  // orange-red
-                OxyColor.FromRgb(215, 48, 39)    // red
-            );
-
-            var caxis = new LinearColorAxis
-            {
-                Position = AxisPosition.Right,
-                Palette = palette,
-                Minimum = minPos,                           // 低于最小正值的（包括 0）走 LowColor
-                Maximum = p95,                              // 高于 P95 的走 HighColor
-                LowColor = OxyColor.FromRgb(242, 242, 242), // 0 值显示很浅灰
-                HighColor = OxyColor.FromRgb(153, 0, 0)     // 极高值深红
-            };
-            model.Axes.Add(caxis);
-
-            // 类目映射轴
-            var axX = new LinearAxis
-            {
-                Position = AxisPosition.Bottom,
-                Minimum = -0.5, Maximum = Math.Max(colors.Count - 0.5, 0.5),
-                MajorStep = 1, MinorStep = 1,
-                IsZoomEnabled = true, IsPanEnabled = true,
-                LabelFormatter = d =>
-                {
-                    var k = (int)Math.Round(d);
-                    return (k >= 0 && k < colors.Count) ? colors[k] : "";
-                }
-            };
-
-            var axY = new LinearAxis
-            {
-                Position = AxisPosition.Left,
-                Minimum = -0.5, Maximum = Math.Max(sizes.Count - 0.5, 0.5),
-                MajorStep = 1, MinorStep = 1,
-                IsZoomEnabled = true, IsPanEnabled = true,
-                LabelFormatter = d =>
-                {
-                    var k = (int)Math.Round(d);
-                    return (k >= 0 && k < sizes.Count) ? sizes[k] : "";
-                }
-            };
-
-            model.Axes.Add(axX);
-            model.Axes.Add(axY);
-
-            var hm = new HeatMapSeries
-            {
-                X0 = -0.5,
-                X1 = colors.Count - 0.5,
-                Y0 = -0.5,
-                Y1 = sizes.Count - 0.5,
-                Interpolate = false,
-                RenderMethod = HeatMapRenderMethod.Rectangles,
-                Data = data
-            };
-
-            model.Series.Add(hm);
-            pv.Model = model;
-
-            var ctx = new HeatmapContext { Colors = colors, Sizes = sizes, Data = data };
-            pv.Tag = ctx;
-            return ctx;
-        }
-
-        private void RenderHeatmap(InvSnapshot snap, PlotView pv, string title)
-        {
-            BuildHeatmap(snap, pv, title);
-            BindPanZoom(pv);
-        }
-        #endregion
-
-        // 供外部调用：切换到指定仓库子页
-        public void ActivateWarehouse(string warehouse)
-        {
-            if (string.IsNullOrWhiteSpace(warehouse)) return;
-            foreach (TabPage tp in _subTabs.TabPages)
-            {
-                var name = tp.Text.Split('（')[0]; // "仓库名（xxx）"
-                if (string.Equals(name, warehouse, StringComparison.OrdinalIgnoreCase))
-                {
-                    _subTabs.SelectedTab = tp;
-                    return;
-                }
-            }
-        }
-
         private void RenderWarehouseTabs(InvSnapshot snap)
         {
             _subTabs.SuspendLayout();
             _subTabs.TabPages.Clear();
 
-            foreach (var g in snap.Rows.GroupBy(r => r.Warehouse).OrderByDescending(x => x.Sum(y => y.Available)))
+            foreach (var g in snap.Rows.GroupBy(r => r.Warehouse).OrderByDescending(x => x.Sum(z => z.Available)))
             {
-                var page = new TabPage($"{g.Key}（{g.Sum(x => x.Available)}）");
-
-                // 布局：上=搜索框，下=左右联动（热力图+明细）
-                var root = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 1, RowCount = 2 };
-                root.RowStyles.Add(new RowStyle(SizeType.Absolute, 34));
-                root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
-
-                var search = new TextBox { Dock = DockStyle.Fill, PlaceholderText = "搜索本仓（颜色/尺码）" };
-                root.Controls.Add(search, 0, 0);
-
-                var panel = new TableLayoutPanel { Dock = DockStyle.Fill, ColumnCount = 2, RowCount = 1 };
-                panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-                panel.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 50));
-
-                var pv = new PlotView { Dock = DockStyle.Fill, BackColor = Color.White };
+                var tp = new TabPage($"{g.Key}（{g.Sum(z => z.Available)}）") { BackColor = Theme.Surface };
                 var grid = new DataGridView { Dock = DockStyle.Fill, ReadOnly = true, AllowUserToAddRows = false, AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.AllCells };
+                Theme.StyleDataGrid(grid);
                 PrepareGridColumns(grid);
-
-                panel.Controls.Add(pv, 0, 0);
-                panel.Controls.Add(grid, 1, 0);
-
-                root.Controls.Add(panel, 0, 1);
-                page.Controls.Add(root);
-
-                var subSnap = new InvSnapshot();
-                foreach (var r in g) subSnap.Rows.Add(r);
-                BuildHeatmap(subSnap, pv, $"{g.Key} 颜色×尺码");
-
-                // 初始填充该仓明细
-                BindGrid(grid, subSnap.Rows);
-
-                // per-tab 筛选状态
-                (string? color, string? size)? sel = null;
-
-                // 联动：点击该仓热力图筛选右侧明细
-                AttachHeatmapInteractions(pv, newSel =>
-                {
-                    sel = newSel;
-                    ApplyWarehouseFilter(grid, subSnap, search.Text, sel);
-                });
-
-                // 搜索：防抖 220ms
-                var t = new System.Windows.Forms.Timer { Interval = 220 };
-                search.TextChanged += (s2, e2) => { t.Stop(); t.Start(); };
-                t.Tick += (s3, e3) => { t.Stop(); ApplyWarehouseFilter(grid, subSnap, search.Text, sel); };
-
-                _subTabs.TabPages.Add(page);
+                BindGrid(grid, g.ToList());
+                tp.Controls.Add(grid);
+                _subTabs.TabPages.Add(tp);
             }
+
             _subTabs.ResumeLayout();
         }
 
-        private void BindGrid(DataGridView grid, IEnumerable<InvRow> rows)
+        private static void PrepareGridColumns(DataGridView grid)
         {
-            PrepareGridColumns(grid);
-            grid.DataSource = new BindingList<InvRow>(rows.ToList());
-        }
-
-        private void PrepareGridColumns(DataGridView grid)
-        {
-            grid.AutoGenerateColumns = false;
             grid.Columns.Clear();
-            grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Name", HeaderText = "品名" });
-            grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Color", HeaderText = "颜色" });
-            grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Size", HeaderText = "尺码" });
-            grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Warehouse", HeaderText = "仓库" });
-            grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "Available", HeaderText = "可用" });
-            grid.Columns.Add(new DataGridViewTextBoxColumn { DataPropertyName = "OnHand", HeaderText = "现有" });
+            grid.RowHeadersVisible = false;
+            grid.Columns.Add("Name", "款式"); grid.Columns.Add("Color", "颜色"); grid.Columns.Add("Size", "尺码"); grid.Columns.Add("Warehouse", "仓库"); grid.Columns.Add("Available", "可用"); grid.Columns.Add("OnHand", "现有");
         }
 
-        private void ApplyOverviewFilter()
+        private static void BindGrid(DataGridView grid, IEnumerable<InvRow> rows)
         {
-            IEnumerable<InvRow> q = _all.Rows;
-            if (_activeCell is { } ac)
-            {
-                if (!string.IsNullOrEmpty(ac.color)) q = q.Where(r => r.Color == ac.color);
-                if (!string.IsNullOrEmpty(ac.size)) q = q.Where(r => r.Size == ac.size);
-            }
-            BindGrid(_grid, q);
+            grid.Rows.Clear();
+            foreach (var r in rows)
+                grid.Rows.Add(r.Name, r.Color, r.Size, r.Warehouse, r.Available, r.OnHand);
         }
 
-        private void ApplyWarehouseFilter(DataGridView grid, InvSnapshot snap, string key, (string? color, string? size)? sel)
+        // Public helpers used by ResultForm for chips
+        public IEnumerable<string> OfferedSizes()
         {
-            IEnumerable<InvRow> q = snap.Rows;
-            var k = (key ?? "").Trim();
-            if (k.Length > 0)
-            {
-                q = q.Where(r => (r.Color?.IndexOf(k, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0
-                              || (r.Size?.IndexOf(k, StringComparison.OrdinalIgnoreCase) ?? -1) >= 0);
-            }
-            if (sel is { } ac)
-            {
-                if (!string.IsNullOrEmpty(ac.color)) q = q.Where(r => r.Color == ac.color);
-                if (!string.IsNullOrEmpty(ac.size)) q = q.Where(r => r.Size == ac.size);
-            }
-            BindGrid(grid, q);
+            return _all.Rows.Select(r => r.Size).Where(s => !string.IsNullOrWhiteSpace(s)).Distinct().OrderBy(s => s);
         }
-
-        #region 交互：悬浮与联动 + 右键平移/滚轮缩放
-        private void BindPanZoom(PlotView pv)
+        public IEnumerable<string> CurrentZeroSizes()
         {
-            try
-            {
-                var ctl = pv.Controller ?? new PlotController();
-                // 允许滚轮缩放
-                ctl.BindMouseWheel(PlotCommands.ZoomWheel);
-                // 右键拖拽平移
-                ctl.BindMouseDown(OxyMouseButton.Right, PlotCommands.PanAt);
-                pv.Controller = ctl;
-            }
-            catch { }
+            var agg = _all.Rows.GroupBy(r => r.Size).ToDictionary(g => g.Key, g => g.Sum(x => x.Available));
+            foreach (var kv in agg) if (kv.Value == 0) yield return kv.Key;
         }
-
-        private void AttachHeatmapInteractions(PlotView pv, Action<(string? color, string? size)?> onSelectionChanged)
-        {
-            // 取消默认左键行为（包括默认 Tracker）
-            try
-            {
-                var ctl = pv.Controller ?? new PlotController();
-                ctl.UnbindMouseDown(OxyMouseButton.Left);
-                // 保留中键/右键平移 + 滚轮缩放
-                ctl.BindMouseDown(OxyMouseButton.Middle, PlotCommands.PanAt);
-                ctl.BindMouseDown(OxyMouseButton.Right, PlotCommands.PanAt);
-                ctl.BindMouseWheel(PlotCommands.ZoomWheel);
-                pv.Controller = ctl;
-            }
-            catch { /* ignore */ }
-
-            pv.MouseMove += (s, e) =>
-            {
-                var model = pv.Model;
-                if (model == null) return;
-
-                var hm = model.Series.OfType<HeatMapSeries>().FirstOrDefault();
-                var ctx = pv.Tag as HeatmapContext;
-                if (hm == null || ctx == null || ctx.Colors.Count == 0 || ctx.Sizes.Count == 0) return;
-
-                var sp = new ScreenPoint(e.Location.X, e.Location.Y);
-                var hit = hm.GetNearestPoint(sp, false);
-                if (hit == null) { _tip.Hide(pv); return; }
-
-                var xi = (int)Math.Round(hit.DataPoint.X);
-                var yi = (int)Math.Round(hit.DataPoint.Y);
-
-                if (xi >= 0 && xi < ctx.Colors.Count && yi >= 0 && yi < ctx.Sizes.Count)
-                {
-                    var color = ctx.Colors[xi];
-                    var size = ctx.Sizes[yi];
-                    var val = ctx.Data[xi, yi];
-                    _tip.Show($"颜色：{color}  尺码：{size}  库存：{val:0}", pv, e.Location.X + 12, e.Location.Y + 12);
-                }
-                else
-                {
-                    _tip.Hide(pv);
-                }
-            };
-
-            pv.MouseLeave += (s, e) => _tip.Hide(pv);
-
-            pv.MouseDown += (s, e) =>
-            {
-                if (e.Button != MouseButtons.Left) return;
-
-                var model = pv.Model;
-                if (model == null) return;
-
-                var hm = model.Series.OfType<HeatMapSeries>().FirstOrDefault();
-                var ctx = pv.Tag as HeatmapContext;
-                if (hm == null || ctx == null || ctx.Colors.Count == 0 || ctx.Sizes.Count == 0) return;
-
-                var sp = new ScreenPoint(e.Location.X, e.Location.Y);
-                var hit = hm.GetNearestPoint(sp, false);
-
-                if (hit != null)
-                {
-                    var xi = (int)Math.Round(hit.DataPoint.X);
-                    var yi = (int)Math.Round(hit.DataPoint.Y);
-                    if (xi >= 0 && xi < ctx.Colors.Count && yi >= 0 && yi < ctx.Sizes.Count)
-                    {
-                        var color = ctx.Colors[xi];
-                        var size = ctx.Sizes[yi];
-                        onSelectionChanged((color, size));
-                        return;
-                    }
-                }
-
-                // 点击空白取消
-                onSelectionChanged(null);
-            };
-        }
-        #endregion
-        public System.Collections.Generic.IEnumerable<string> CurrentZeroSizes()
-        {
-            return _all.Rows
-                .GroupBy(r => r.Size)
-                .Select(g => new { s = g.Key, v = g.Sum(x => x.Available) })
-                .Where(x => !string.IsNullOrWhiteSpace(x.s) && x.v == 0)
-                .Select(x => x.s)
-                .ToList();
-        }
-
-        public System.Collections.Generic.IEnumerable<string> OfferedSizes()
-        {
-            return _all.Rows
-                .Select(r => r.Size)
-                .Where(s => !string.IsNullOrWhiteSpace(s))
-                .Distinct(System.StringComparer.OrdinalIgnoreCase)
-                .ToList();
-        }
-
     }
 }
-#pragma warning restore 0618
