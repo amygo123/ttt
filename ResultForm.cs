@@ -6,6 +6,8 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using System.Net.Http;
+using System.Text.Json;
 using ClosedXML.Excel;
 using OxyPlot;
 using OxyPlot.Axes;
@@ -74,6 +76,38 @@ namespace StyleWatcherWin
 
         // Inventory page
         private InventoryTabPage? _invPage;
+// Vip inventory page (virtualized)
+private TabPage? _vipInvTab;
+private readonly DataGridView _vipGrid = new()
+{
+    Dock = DockStyle.Fill,
+    ReadOnly = true,
+    AllowUserToAddRows = false,
+    AllowUserToDeleteRows = false,
+    RowHeadersVisible = false,
+    VirtualMode = true,
+    AutoSizeColumnsMode = DataGridViewAutoSizeColumnsMode.DisplayedCells,
+    EnableHeadersVisualStyles = false,
+    BorderStyle = BorderStyle.None,
+    CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal
+};
+private readonly TextBox _vipSearchBox = new();
+private readonly System.Windows.Forms.Timer _vipSearchDebounce = new() { Interval = 200 };
+private readonly Label _vipStatus = new()
+{
+    AutoSize = true,
+    Margin = new Padding(8, 8, 0, 0),
+    ForeColor = Color.FromArgb(120, 120, 120)
+};
+private readonly List<Dictionary<string, object?>> _vipAll = new();
+private List<Dictionary<string, object?>> _vipView = new();
+private readonly List<string> _vipColumns = new();
+private string? _vipSortColumn;
+private bool _vipSortAscending = true;
+private bool _vipLoaded;
+private bool _vipLoading;
+private static readonly HttpClient _vipHttp = new();
+
 
         // Caches
         private string _lastDisplayText = string.Empty;
@@ -89,7 +123,7 @@ namespace StyleWatcherWin
         {
             _cfg = cfg;
 
-            Text = "StyleWatcher";
+            Text = "随手查";
             Font = new Font("Microsoft YaHei UI", _cfg.window.fontSize);
             Width = Math.Max(1600, _cfg.window.width);
             Height = Math.Max(900, _cfg.window.height);
@@ -124,7 +158,7 @@ _kpi.Controls.Add(MakeKpi(_kpiDoc, "库存天数", "—"));
 _kpi.Controls.Add(MakeKpi(_kpiGrade, "定级", "—"));
 _kpi.Controls.Add(MakeKpi(_kpiMinPrice, "最低价", "—"));
 _kpi.Controls.Add(MakeKpi(_kpiBreakeven, "保本价", "—"));
-_kpi.Controls.Add(MakeKpiMissingChips(_kpiMissing, "缺货尺码"));
+_kpi.Controls.Add(MakeKpiMissing(_kpiMissing, "缺货尺码"));
 
 content.Controls.Add(_kpi, 0, 0);
 
@@ -145,12 +179,39 @@ content.Controls.Add(_kpi, 0, 0);
             _input.MinimumSize = new Size(420,32);
             _input.Height = 30;
 
-            _btnQuery.Text="重新查询";
-            _btnQuery.AutoSize=true; _btnQuery.Padding=new Padding(10,6,10,6);
-            _btnQuery.Click += async (s,e)=>{ _btnQuery.Enabled=false; try{ await ReloadAsync(""); } finally{ _btnQuery.Enabled=true; } };
+            _btnQuery.Text="查询";
+            _btnQuery.AutoSize=true; _btnQuery.Padding=new Padding(8,3,8,3); _btnQuery.FlatStyle = FlatStyle.Flat;
+            _btnQuery.Click += async (s,e)=>
+{
+    var txt = _input.Text ?? string.Empty;
+    txt = txt.Trim();
+
+    _btnQuery.Enabled = false;
+    try
+    {
+        if (string.IsNullOrEmpty(txt))
+        {
+            SetLoading("未检测到输入内容，请先在上方输入内容后再点击“查询”。");
+            return;
+        }
+
+        SetLoading("查询中...");
+        var raw = await ApiHelper.QueryAsync(_cfg, txt);
+        var result = Formatter.Prettify(raw);
+        ApplyRawText(txt, result);
+    }
+    catch (Exception ex)
+    {
+        SetLoading($"错误：{ex.Message}");
+    }
+    finally
+    {
+        _btnQuery.Enabled = true;
+    }
+};
 
             _btnExport.Text="导出Excel";
-            _btnExport.AutoSize=true; _btnExport.Padding=new Padding(10,6,10,6);
+            _btnExport.AutoSize=true; _btnExport.Padding=new Padding(8,3,8,3); _btnExport.FlatStyle = FlatStyle.Flat;
             _btnExport.Click += (s,e)=> ExportExcel();
 
             head.Controls.Add(_input,0,0);
@@ -162,7 +223,7 @@ content.Controls.Add(_kpi, 0, 0);
         private Control MakeKpi(Panel host,string title,string value)
         {
             host.Width=260; host.Height=110; host.Padding=new Padding(10);
-            host.BackColor=Color.FromArgb(250,250,250); host.BorderStyle=BorderStyle.FixedSingle;
+            host.BackColor=Color.FromArgb(250,250,252); host.BorderStyle=BorderStyle.None; host.Paint += (s,e)=>{ var r=((Panel)s).ClientRectangle; r.Inflate(-1,-1); e.Graphics.SmoothingMode=System.Drawing.Drawing2D.SmoothingMode.AntiAlias; using(var pen=new Pen(Color.FromArgb(230,235,245))) e.Graphics.DrawRectangle(pen, r); };
             host.Margin = new Padding(8,4,8,4);
 
             var inner = new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=2};
@@ -179,10 +240,11 @@ content.Controls.Add(_kpi, 0, 0);
             host.Controls.Add(inner);
             return host;
         }
-private Control MakeKpiMissingChips(Panel host, string title)
+
+        private Control MakeKpiMissing(Panel host, string title)
         {
             host.Width=260; host.Height=110; host.Padding=new Padding(10);
-            host.BackColor=Color.FromArgb(250,250,250); host.BorderStyle=BorderStyle.FixedSingle;
+            host.BackColor=Color.FromArgb(250,250,252); host.BorderStyle=BorderStyle.None; host.Paint += (s,e)=>{ var r=((Panel)s).ClientRectangle; r.Inflate(-1,-1); e.Graphics.SmoothingMode=System.Drawing.Drawing2D.SmoothingMode.AntiAlias; using(var pen=new Pen(Color.FromArgb(230,235,245))) e.Graphics.DrawRectangle(pen, r); };
             host.Margin = new Padding(8,4,8,4);
 
             var inner = new TableLayoutPanel{Dock=DockStyle.Fill,ColumnCount=1,RowCount=2};
@@ -313,6 +375,13 @@ private Control MakeKpiMissingChips(Panel host, string title)
 
             _grid.Dock=DockStyle.Fill; _grid.ReadOnly=true; _grid.AllowUserToAddRows=false; _grid.AllowUserToDeleteRows=false;
             _grid.RowHeadersVisible=false; _grid.AutoSizeColumnsMode=DataGridViewAutoSizeColumnsMode.AllCells;
+            _grid.EnableHeadersVisualStyles = false;
+            _grid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(245,247,250);
+            _grid.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(47,47,47);
+            _grid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(249,251,255);
+            _grid.GridColor = Color.FromArgb(230,235,245);
+            _grid.BorderStyle = BorderStyle.None;
+            _grid.CellBorderStyle = DataGridViewCellBorderStyle.SingleHorizontal;
             _grid.DataSource=_binding;
             panel.Controls.Add(_grid,0,2);
             detail.Controls.Add(panel);
@@ -322,6 +391,75 @@ private Control MakeKpiMissingChips(Panel host, string title)
             _invPage = new InventoryTabPage(_cfg);
             _invPage.SummaryUpdated += OnInventorySummary;
             _tabs.TabPages.Add(_invPage);
+// 唯品库存页（虚拟模式，避免大数据渲染卡顿）
+_vipInvTab = new TabPage("唯品库存") { BackColor = Color.White };
+
+var vipLayout = new TableLayoutPanel
+{
+    Dock = DockStyle.Fill,
+    ColumnCount = 1,
+    RowCount = 2,
+    Padding = new Padding(12)
+};
+vipLayout.RowStyles.Add(new RowStyle(SizeType.Absolute, 44));
+vipLayout.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+var vipTop = new TableLayoutPanel
+{
+    Dock = DockStyle.Fill,
+    ColumnCount = 3
+};
+vipTop.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+vipTop.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+vipTop.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
+
+_vipSearchBox.Dock = DockStyle.Fill;
+_vipSearchBox.MinimumSize = new Size(0, 30);
+_vipSearchBox.Margin = new Padding(0, 4, 0, 4);
+_vipSearchBox.PlaceholderText = "搜索（款式名/颜色/尺码等，空格分隔多条件）";
+_vipSearchBox.TextChanged += (s, e) =>
+{
+    _vipSearchDebounce.Stop();
+    _vipSearchDebounce.Start();
+};
+vipTop.Controls.Add(_vipSearchBox, 0, 0);
+
+_vipStatus.Text = string.Empty;
+vipTop.Controls.Add(_vipStatus, 1, 0);
+
+var vipRefresh = new Button
+{
+    Text = "刷新",
+    AutoSize = true,
+    Padding = new Padding(8, 4, 8, 4),
+    Margin = new Padding(8, 4, 0, 4)
+};
+vipRefresh.Click += async (s, e) => await ForceReloadVipInventoryAsync();
+vipTop.Controls.Add(vipRefresh, 2, 0);
+
+vipLayout.Controls.Add(vipTop, 0, 0);
+vipLayout.Controls.Add(_vipGrid, 0, 1);
+
+_vipInvTab.Controls.Add(vipLayout);
+_tabs.TabPages.Add(_vipInvTab);
+            StyleVipGrid();
+
+_vipGrid.CellValueNeeded += VipGrid_CellValueNeeded;
+_vipGrid.ColumnHeaderMouseClick += VipGrid_ColumnHeaderMouseClick;
+
+_vipSearchDebounce.Tick += (s, e) =>
+{
+    _vipSearchDebounce.Stop();
+    ApplyVipFilter(_vipSearchBox.Text);
+};
+
+_tabs.SelectedIndexChanged += async (s, e) =>
+{
+    if (_tabs.SelectedTab == _vipInvTab)
+    {
+        await EnsureVipInventoryLoadedAsync();
+    }
+};
         }
 
         private static Label? ValueLabelOf(Panel p)
@@ -666,7 +804,7 @@ if (other > 0)
         
     
 
-        private async System.Threading.Tasks.Task LoadPriceAsync(string styleName)
+                private async System.Threading.Tasks.Task LoadPriceAsync(string styleName)
         {
             try
             {
@@ -677,22 +815,25 @@ if (other > 0)
                     SetKpiValue(_kpiBreakeven, "—");
                     return;
                 }
-                using var http = new System.Net.Http.HttpClient { Timeout = System.TimeSpan.FromSeconds(5) };
-                var url = "http://192.168.40.97:8002/lookup?name=" + System.Uri.EscapeDataString(styleName);
+
+                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+                var url = "http://192.168.40.97:8002/lookup?name=" + Uri.EscapeDataString(styleName);
                 var resp = await http.GetAsync(url);
                 resp.EnsureSuccessStatusCode();
                 var json = await resp.Content.ReadAsStringAsync();
-                using var doc = System.Text.Json.JsonDocument.Parse(json);
+
+                using var doc = JsonDocument.Parse(json);
                 var arr = doc.RootElement;
-                if (arr.ValueKind == System.Text.Json.JsonValueKind.Array && arr.GetArrayLength() > 0)
+                if (arr.ValueKind == JsonValueKind.Array && arr.GetArrayLength() > 0)
                 {
                     var first = arr[0];
                     var grade = first.TryGetProperty("grade", out var g) ? g.GetString() : "—";
                     var minp  = first.TryGetProperty("min_price_one", out var m) ? m.GetString() : "—";
                     var brk   = first.TryGetProperty("breakeven_one", out var b) ? b.GetString() : "—";
+
                     SetKpiValue(_kpiGrade, grade ?? "—");
-                    SetKpiValue(_kpiMinPrice, minp  ?? "—");
-                    SetKpiValue(_kpiBreakeven, brk  ?? "—");
+                    SetKpiValue(_kpiMinPrice, minp ?? "—");
+                    SetKpiValue(_kpiBreakeven, brk ?? "—");
                 }
                 else
                 {
@@ -709,7 +850,330 @@ if (other > 0)
             }
         }
 
+        // ======================
+        // 唯品库存：加载 & 展示
+        // ======================
 
-        
+        private async Task EnsureVipInventoryLoadedAsync()
+        {
+            if (_vipLoaded || _vipLoading) return;
+            await ForceReloadVipInventoryAsync();
+        }
+
+        private async Task ForceReloadVipInventoryAsync()
+        {
+            if (_vipLoading) return;
+
+            _vipLoading = true;
+            _vipStatus.Text = "唯品库存加载中...";
+
+            try
+            {
+                var rows = await FetchVipInventoryAsync();
+                _vipAll.Clear();
+                if (rows != null) _vipAll.AddRange(rows);
+                _vipView = _vipAll.ToList();
+
+                BuildVipColumnsAndBind();
+                _vipLoaded = true;
+                _vipStatus.Text = $"共 {_vipView.Count} 条记录";
+            }
+            catch (Exception ex)
+            {
+                _vipAll.Clear();
+                _vipView = new List<Dictionary<string, object?>>
+                {
+                    new() { ["错误"] = ex.Message }
+                };
+                BuildVipColumnsAndBind();
+                _vipLoaded = false;
+                _vipStatus.Text = "加载失败";
+            }
+            finally
+            {
+                _vipLoading = false;
+            }
+        }
+
+        private async Task<List<Dictionary<string, object?>>> FetchVipInventoryAsync()
+        {
+            var url = "http://192.168.40.97:8001/inventory";
+
+            using var resp = await _vipHttp.GetAsync(url);
+            resp.EnsureSuccessStatusCode();
+            var json = await resp.Content.ReadAsStringAsync();
+
+            return await Task.Run(() =>
+            {
+                var list = new List<Dictionary<string, object?>>();
+                using var doc = JsonDocument.Parse(json);
+
+                if (doc.RootElement.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var elem in doc.RootElement.EnumerateArray())
+                    {
+                        var dict = new Dictionary<string, object?>();
+                        foreach (var prop in elem.EnumerateObject())
+                        {
+                            object? val = prop.Value.ValueKind switch
+                            {
+                                JsonValueKind.String => prop.Value.GetString(),
+                                JsonValueKind.Number when prop.Value.TryGetInt64(out var iv) => iv,
+                                JsonValueKind.Number when prop.Value.TryGetDouble(out var dv) => dv,
+                                JsonValueKind.True or JsonValueKind.False => prop.Value.GetBoolean(),
+                                JsonValueKind.Null => null,
+                                _ => prop.Value.ToString()
+                            };
+                            dict[prop.Name] = val;
+                        }
+                        list.Add(dict);
+                    }
+                }
+
+                return list;
+            });
+        }
+
+        /// <summary>
+        /// 固定列顺序：款式名 / 白胚可用数 / 进货仓库存 / 成品占用数 / 可用数汇总
+        /// </summary>
+        private void BuildVipColumnsAndBind()
+        {
+            _vipGrid.SuspendLayout();
+            try
+            {
+                _vipGrid.Columns.Clear();
+                _vipColumns.Clear();
+
+                if (_vipView == null || _vipView.Count == 0)
+                {
+                    _vipGrid.RowCount = 0;
+                    return;
+                }
+
+                _vipColumns.Add("product_original_code");
+                _vipColumns.Add("白胚可用数");
+                _vipColumns.Add("进货仓库存");
+                _vipColumns.Add("成品占用数");
+                _vipColumns.Add("__sum");
+
+                foreach (var col in _vipColumns)
+                {
+                    var header = col switch
+                    {
+                        "product_original_code" => "款式名",
+                        "白胚可用数" => "白胚可用数",
+                        "进货仓库存" => "进货仓库存",
+                        "成品占用数" => "成品占用数",
+                        "__sum" => "可用数汇总",
+                        _ => col
+                    };
+
+                    _vipGrid.Columns.Add(col, header);
+                }
+
+                _vipGrid.RowCount = _vipView.Count;
+            }
+            finally
+            {
+                _vipGrid.ResumeLayout();
+            }
+        }
+
+        private void VipGrid_CellValueNeeded(object? sender, DataGridViewCellValueEventArgs e)
+        {
+            if (_vipView == null) return;
+            if (e.RowIndex < 0 || e.RowIndex >= _vipView.Count) return;
+            if (e.ColumnIndex < 0 || e.ColumnIndex >= _vipColumns.Count) return;
+
+            var row = _vipView[e.RowIndex];
+            if (row == null) return;
+
+            var key = _vipColumns[e.ColumnIndex];
+
+            if (key == "__sum")
+            {
+                var sum =
+                    GetVipNumber(row, "白胚可用数", "白坯可用数") +
+                    GetVipNumber(row, "进货仓库存") +
+                    GetVipNumber(row, "成品占用数");
+                e.Value = sum;
+                return;
+            }
+
+            if (key == "成品占用数")
+            {
+                e.Value = GetVipNumber(row, "成品占用数");
+                return;
+            }
+
+            if (key == "白胚可用数")
+            {
+                if (!row.TryGetValue("白胚可用数", out var val) || val == null)
+                    row.TryGetValue("白坯可用数", out val);
+                e.Value = val ?? 0;
+                return;
+            }
+
+            if (key == "product_original_code")
+            {
+                row.TryGetValue("product_original_code", out var val);
+                e.Value = val;
+                return;
+            }
+
+            if (row.TryGetValue(key, out var v))
+            {
+                e.Value = v;
+            }
+        }
+
+        private void VipGrid_ColumnHeaderMouseClick(object? sender, DataGridViewCellMouseEventArgs e)
+        {
+            if (_vipView == null || _vipView.Count <= 1) return;
+            if (e.ColumnIndex < 0 || e.ColumnIndex >= _vipColumns.Count) return;
+
+            var col = _vipColumns[e.ColumnIndex];
+
+            if (_vipSortColumn == col)
+            {
+                _vipSortAscending = !_vipSortAscending;
+            }
+            else
+            {
+                _vipSortColumn = col;
+                _vipSortAscending = true;
+            }
+
+            _vipView.Sort((a, b) =>
+            {
+                var ka = GetVipSortKey(a, col);
+                var kb = GetVipSortKey(b, col);
+
+                if (ka == null && kb == null) return 0;
+                if (ka == null) return -1;
+                if (kb == null) return 1;
+                return ka.CompareTo(kb);
+            });
+
+            if (!_vipSortAscending)
+                _vipView.Reverse();
+
+            _vipGrid.Invalidate();
+        }
+
+        private IComparable? GetVipSortKey(Dictionary<string, object?>? row, string col)
+        {
+            if (row == null) return null;
+
+            if (col == "__sum")
+            {
+                return
+                    GetVipNumber(row, "白胚可用数", "白坯可用数") +
+                    GetVipNumber(row, "进货仓库存") +
+                    GetVipNumber(row, "成品占用数");
+            }
+
+            if (col == "白胚可用数")
+                return GetVipNumber(row, "白胚可用数", "白坯可用数");
+            if (col == "进货仓库存")
+                return GetVipNumber(row, "进货仓库存");
+            if (col == "成品占用数")
+                return GetVipNumber(row, "成品占用数");
+
+            if (!row.TryGetValue(col, out var val) || val == null)
+                return null;
+
+            switch (val)
+            {
+                case int i: return i;
+                case long l: return l;
+                case double d: return d;
+            }
+
+            if (double.TryParse(val.ToString(), out var dv))
+                return dv;
+
+            return val.ToString();
+        }
+
+        private double GetVipNumber(Dictionary<string, object?> row, params string[] keys)
+        {
+            foreach (var key in keys)
+            {
+                if (!row.TryGetValue(key, out var val) || val == null)
+                    continue;
+
+                switch (val)
+                {
+                    case int i: return i;
+                    case long l: return l;
+                    case double d: return d;
+                    case float f: return f;
+                    case string s when double.TryParse(s, out var dv): return dv;
+                }
+            }
+
+            return 0d;
+        }
+
+        /// <summary>
+        /// 多关键词 AND 搜索（空格/逗号/加号等拆分），在整行文本上匹配。
+        /// 不重新请求接口，仅针对本地缓存数据过滤。
+        /// </summary>
+        private void ApplyVipFilter(string? keyword)
+        {
+            if (_vipAll == null || _vipAll.Count == 0)
+            {
+                _vipView = new List<Dictionary<string, object?>>();
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(keyword))
+                {
+                    _vipView = _vipAll.ToList();
+                }
+                else
+                {
+                    var parts = keyword
+                        .Split(new[] { ' ', '　', ',', '，', '+', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(p => p.Trim())
+                        .Where(p => p.Length > 0)
+                        .Select(p => p.ToLowerInvariant())
+                        .ToArray();
+
+                    if (parts.Length == 0)
+                    {
+                        _vipView = _vipAll.ToList();
+                    }
+                    else
+                    {
+                        _vipView = _vipAll
+                            .Where(row =>
+                            {
+                                if (row == null) return false;
+
+                                var text = string.Join(" ", row.Values
+                                    .Select(v => v?.ToString() ?? string.Empty))
+                                    .ToLowerInvariant();
+
+                                return parts.All(p => text.Contains(p));
+                            })
+                            .ToList();
+                    }
+                }
+            }
+
+            BuildVipColumnsAndBind();
+            _vipGrid.Invalidate();
+        }
+    
+        private void StyleVipGrid()
+        {
+            _vipGrid.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(245,247,250);
+            _vipGrid.ColumnHeadersDefaultCellStyle.ForeColor = Color.FromArgb(47,47,47);
+            _vipGrid.AlternatingRowsDefaultCellStyle.BackColor = Color.FromArgb(249,251,255);
+            _vipGrid.GridColor = Color.FromArgb(230,235,245);
+        }
 }
 }
