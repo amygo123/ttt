@@ -624,11 +624,11 @@ namespace StyleWatcherWin
                 foreach (var row in rows)
                 {
                     var props = row.GetType().GetProperties();
-                    ws.Cell(r, 1).Value = props.FirstOrDefault(p => p.Name == "日期")?.GetValue(row);
-                    ws.Cell(r, 2).Value = props.FirstOrDefault(p => p.Name == "款式")?.GetValue(row);
-                    ws.Cell(r, 3).Value = props.FirstOrDefault(p => p.Name == "颜色")?.GetValue(row);
-                    ws.Cell(r, 4).Value = props.FirstOrDefault(p => p.Name == "尺码")?.GetValue(row);
-                    ws.Cell(r, 5).Value = props.FirstOrDefault(p => p.Name == "数量")?.GetValue(row);
+                    ws.Cell(r, 1).SetValue((props.FirstOrDefault(p => p.Name == "日期")?.GetValue(row))?.ToString());
+                    ws.Cell(r, 2).SetValue((props.FirstOrDefault(p => p.Name == "款式")?.GetValue(row))?.ToString());
+                    ws.Cell(r, 3).SetValue((props.FirstOrDefault(p => p.Name == "颜色")?.GetValue(row))?.ToString());
+                    ws.Cell(r, 4).SetValue((props.FirstOrDefault(p => p.Name == "尺码")?.GetValue(row))?.ToString());
+                    ws.Cell(r, 5).SetValue((props.FirstOrDefault(p => p.Name == "数量")?.GetValue(row))?.ToString());
                     r++;
                 }
 
