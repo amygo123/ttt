@@ -78,9 +78,7 @@ namespace StyleWatcherWin
         private readonly ToolTip _tip = new() { InitialDelay = 0, ReshowDelay = 0, AutoPopDelay = 8000, ShowAlways = true };
 
         // 当前点击筛选（总览热力图）
-        #pragma warning disable CS0414
         private (string? color, string? size)? _activeCell = null;
-#pragma warning restore CS0414
 
         private Label _lblAvail = new();
         private Label _lblOnHand = new();
@@ -122,7 +120,7 @@ namespace StyleWatcherWin
             var filler = new Panel { Dock = DockStyle.Fill };
             p.Controls.Add(filler, 2, 0);
 
-            var btnReload = new Button { Text = "刷新", AutoSize = true, Padding = new Padding(8,3,8,3), FlatStyle = FlatStyle.Flat };
+            var btnReload = new Button { Text = "刷新", AutoSize = true, Padding = new Padding(10, 4, 10, 4), FlatStyle = FlatStyle.Flat };
             btnReload.Click += async (s, e) => await ReloadAsync(_styleName);
             p.Controls.Add(btnReload, 3, 0);
 

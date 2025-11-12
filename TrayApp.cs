@@ -1,4 +1,3 @@
-
 using System;
 using System.Collections.Generic;
 using System.Net.Http;
@@ -28,15 +27,21 @@ namespace StyleWatcherWin
 
     public class TrayApp : Form
     {
+        // --- Win32 ---
         [DllImport("user32.dll")] static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
         [DllImport("user32.dll")] static extern bool UnregisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
         [DllImport("user32.dll")] static extern short GetAsyncKeyState(int vKey);
         [DllImport("user32.dll")] static extern void keybd_event(byte bVk, byte bScan, int dwFlags, int dwExtraInfo);
+
         [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
         [DllImport("user32.dll")] static extern IntPtr GetFocus();
         [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint processId);
         [DllImport("kernel32.dll")] static extern uint GetCurrentThreadId();
-        [DllImport("user32.dll", SetLastError = true)] static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
+        // ✅ 补充：AttachThreadInput 的声明（修复 CS0103）
+        [DllImport("user32.dll", SetLastError = true)]
+        static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+
         [DllImport("user32.dll", CharSet = CharSet.Auto)] static extern IntPtr SendMessage(IntPtr hWnd, int msg, IntPtr wParam, IntPtr lParam);
         [DllImport("user32.dll", CharSet = CharSet.Auto)] static extern IntPtr SendMessage(IntPtr hWnd, int msg, ref int wParam, ref int lParam);
         [DllImport("user32.dll", CharSet = CharSet.Auto)] static extern IntPtr SendMessage(IntPtr hWnd, int msg, int wParam, StringBuilder lParam);
@@ -48,7 +53,7 @@ namespace StyleWatcherWin
 
         const uint MOD_ALT = 0x0001, MOD_CONTROL = 0x0002, MOD_SHIFT = 0x0004, MOD_WIN = 0x0008;
         const int KEYEVENTF_KEYUP = 0x0002;
-        const byte VK_MENU = 0x12;
+        const byte VK_MENU = 0x12; // Alt
 
         static void ReleaseAlt()
         {
@@ -56,12 +61,14 @@ namespace StyleWatcherWin
                 keybd_event(VK_MENU, 0, KEYEVENTF_KEYUP, 0);
         }
 
-        readonly NotifyIcon _tray = new();
-        readonly ContextMenuStrip _menu = new();
+        // Tray & config
+        readonly NotifyIcon _tray = new NotifyIcon();
+        readonly ContextMenuStrip _menu = new ContextMenuStrip();
         readonly AppConfig _cfg;
 
+        // Single window & throttling
         ResultForm? _window;
-        readonly SemaphoreSlim _queryLock = new(1, 1);
+        readonly SemaphoreSlim _queryLock = new SemaphoreSlim(1, 1);
         DateTime _lastHotkeyAt = DateTime.MinValue;
 
         int _hotkeyId = 1;
@@ -71,11 +78,13 @@ namespace StyleWatcherWin
 
         public TrayApp()
         {
-            _cfg = AppConfig.Load() ?? new AppConfig();
+            _cfg = AppConfig.Load();
+            if (_cfg == null) _cfg = new AppConfig();
             ShowInTaskbar = false;
             WindowState = FormWindowState.Minimized;
             Visible = false;
 
+            // 托盘图标
             _tray.Text = "随手查";
             try
             {
@@ -87,7 +96,10 @@ namespace StyleWatcherWin
                     _tray.Icon = File.Exists(icoPath) ? new Icon(icoPath) : SystemIcons.Application;
                 }
             }
-            catch { _tray.Icon = SystemIcons.Application; }
+            catch
+            {
+                _tray.Icon = SystemIcons.Application;
+            }
             _tray.Visible = true;
             _tray.DoubleClick += (s, e) => ToggleWindow(show: true);
 
@@ -122,7 +134,8 @@ namespace StyleWatcherWin
             var hotkey = _cfg?.hotkey ?? "Alt+S";
             ParseHotkey(hotkey, out _mod, out _vk);
             if (!RegisterHotKey(Handle, _hotkeyId, _mod, _vk))
-                MessageBox.Show($"热键 " + hotkey + " 注册失败，可能被占用。", "随手查", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show($"热键 " + hotkey + " 注册失败，可能被占用。", "随手查",
+                    MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
             _tray.BalloonTipTitle = "随手查 已启动";
             _tray.BalloonTipText = $"选中文本后按 {hotkey} 查询；双击托盘可显示窗口。";
@@ -178,32 +191,134 @@ namespace StyleWatcherWin
             Application.Exit();
         }
 
-        private async Task OnHotkeyAsync()
+        // 选区（Win32）+ 剪贴板兜底
+        private string? TryGetSelectedTextUsingWin32()
         {
-            ReleaseAlt(); // make sure Alt key state is up
-            EnsureWindow();
-            var w = _window;
-            if (w == null) return;
+            try
+            {
+                var fg = GetForegroundWindow();
+                if (fg == IntPtr.Zero) return null;
 
-            // Keep original behavior (selection -> API -> show window)
-            await Task.Yield();
-            w.ShowAndFocusCentered(_cfg.window.alwaysOnTop);
+                uint fgThread = GetWindowThreadProcessId(fg, out _);
+                uint curThread = GetCurrentThreadId();
+                bool attached = false;
+
+                try
+                {
+                    attached = AttachThreadInput(curThread, fgThread, true);
+                    var hFocus = GetFocus();
+                    if (hFocus == IntPtr.Zero) return null;
+
+                    int start = 0, end = 0;
+                    SendMessage(hFocus, EM_GETSEL, ref start, ref end);
+
+                    int len = (int)SendMessage(hFocus, WM_GETTEXTLENGTH, IntPtr.Zero, IntPtr.Zero);
+                    if (len <= 0) return null;
+
+                    var sb = new StringBuilder(len + 1);
+                    SendMessage(hFocus, WM_GETTEXT, sb.Capacity, sb);
+                    var full = sb.ToString();
+
+                    if (start < 0 || end < 0 || start > full.Length) return null;
+                    if (end > full.Length) end = full.Length;
+                    if (end > start) return full.Substring(start, end - start).Trim();
+                }
+                finally
+                {
+                    if (attached) AttachThreadInput(curThread, fgThread, false);
+                }
+            }
+            catch { }
+            return null;
         }
 
-        static void ParseHotkey(string hotkey, out uint mod, out uint vk)
+        private async Task<string> GetSelectionByClipboardRoundTripAsync()
+        {
+            IDataObject? backup = null;
+            try { backup = Clipboard.GetDataObject(); } catch { }
+
+            SendKeys.SendWait("^c");
+            await Task.Delay(120);
+
+            string txt = "";
+            try { txt = Clipboard.GetText()?.Trim() ?? ""; } catch { }
+
+            if (backup != null)
+            {
+                try { Clipboard.SetDataObject(backup, true); } catch { }
+            }
+            return txt;
+        }
+
+        // 热键（去抖 + 限流 + 复用同窗）
+        private async Task OnHotkeyAsync()
+        {
+            var now = DateTime.UtcNow;
+            if ((now - _lastHotkeyAt).TotalMilliseconds < 500) return;
+            _lastHotkeyAt = now;
+
+            if (!await _queryLock.WaitAsync(0))
+            {
+                ToggleWindow(show: true);
+                return;
+            }
+
+            try
+            {
+                ReleaseAlt();
+
+                string txt = TryGetSelectedTextUsingWin32() ?? string.Empty;
+                if (string.IsNullOrEmpty(txt)) txt = await GetSelectionByClipboardRoundTripAsync();
+
+                EnsureWindow();
+                var w = _window;
+                if (w == null) return;
+
+                w.ShowAndFocusCentered(_cfg.window.alwaysOnTop);
+
+                if (string.IsNullOrEmpty(txt))
+                {
+                    w.SetLoading("未检测到选中文本，请先选中一段文字再按热键。");
+                    return;
+                }
+
+                w.SetLoading("查询中...");
+                // 统一走 ApiHelper
+                string raw = await ApiHelper.QueryAsync(_cfg, txt);
+                string result = Formatter.Prettify(raw);
+                w.ApplyRawText(txt, result);
+            }
+            catch (Exception ex)
+            {
+                EnsureWindow();
+                var w = _window;
+                if (w != null) w.SetLoading($"错误：{ex.Message}");
+            }
+            finally
+            {
+                ReleaseAlt();
+                _queryLock.Release();
+            }
+        }
+
+        private void ParseHotkey(string s, out uint mod, out uint vk)
         {
             mod = 0; vk = 0;
-            if (string.IsNullOrWhiteSpace(hotkey)) { mod = MOD_ALT; vk = (uint)Keys.S; return; }
-            var parts = hotkey.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (string.IsNullOrWhiteSpace(s)) { mod = MOD_ALT; vk = (uint)Keys.S; return; }
+            var parts = s.Split(new[] { '+' }, StringSplitOptions.RemoveEmptyEntries);
             foreach (var p in parts)
             {
-                if (p.Equals("Alt", StringComparison.OrdinalIgnoreCase)) mod |= MOD_ALT;
-                else if (p.Equals("Ctrl", StringComparison.OrdinalIgnoreCase) || p.Equals("Control", StringComparison.OrdinalIgnoreCase)) mod |= MOD_CONTROL;
-                else if (p.Equals("Shift", StringComparison.OrdinalIgnoreCase)) mod |= MOD_SHIFT;
-                else if (p.Equals("Win", StringComparison.OrdinalIgnoreCase)) mod |= MOD_WIN;
-                else if (Enum.TryParse<Keys>(p, true, out var key)) vk = (uint)key;
+                var t = p.Trim().ToUpperInvariant();
+                if (t == "CTRL" || t == "CONTROL") mod |= MOD_CONTROL;
+                else if (t == "SHIFT") mod |= MOD_SHIFT;
+                else if (t == "ALT") mod |= MOD_ALT;
+                else
+                {
+                    if (Enum.TryParse<Keys>(t, true, out var key)) vk = (uint)key;
+                }
             }
             if (vk == 0) vk = (uint)Keys.S;
+            if (mod == 0) mod = MOD_ALT;
         }
     }
 }
