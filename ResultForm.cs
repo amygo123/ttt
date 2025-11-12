@@ -952,6 +952,7 @@ if (other > 0)
                 SetKpiValue(_kpiMinPrice, "—");
                 SetKpiValue(_kpiBreakeven, "—");
             }
+        }
     
 private async Task EnsureVipInventoryLoadedAsync()
 {
@@ -1259,8 +1260,4 @@ private void ApplyVipFilter(string? keyword)
     _vipGrid.Invalidate();
 }
     }
-
-
-        
-}
 }
