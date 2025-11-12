@@ -55,7 +55,7 @@ namespace StyleWatcherWin
         private readonly BindingSource _binding = new();
         private readonly TextBox _boxSearch = new();
         private readonly FlowLayoutPanel _filterChips = new();
-        private readonly Timer _searchDebounce = new() { Interval = 220 };
+        private readonly Timer _searchDebounce = new System.Windows.Forms.Timer() { Interval = 220 };
 
         // Inventory page
         private InventoryTabPage? _invPage;
@@ -76,7 +76,7 @@ namespace StyleWatcherWin
             Text = "随手查";
             Font = Theme.FontBase;
             Width = Math.Max(1600, _cfg.window.width);
-            Height = Math.max(900, _cfg.window.height);
+            Height = Math.Max(900, _cfg.window.height);
             StartPosition = FormStartPosition.CenterScreen;
             TopMost = _cfg.window.alwaysOnTop;
             BackColor = Theme.Surface;
